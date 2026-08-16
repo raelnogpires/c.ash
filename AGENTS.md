@@ -26,7 +26,7 @@ Use Go’s standard `testing` package unless the project adopts a documented alt
 
 ## Commit & Pull Request Guidelines
 
-There is no Git commit history yet, so no repository-specific convention is established. Use concise imperative messages with a small scope, such as `add transaction persistence` or `fix monthly total calculation`. Pull requests should explain the user-facing change, identify tests run, link a relevant issue when one exists, and include screenshots or a short recording for UI changes. Keep unrelated refactors out of feature changes.
+Use concise imperative messages with a small scope, such as `add transaction persistence` or `fix monthly total calculation`. Pull requests should explain the user-facing change, identify tests run, link a relevant issue when one exists, and include screenshots or a short recording for UI changes. Keep unrelated refactors out of feature changes.
 
 ## Security & Configuration
 
