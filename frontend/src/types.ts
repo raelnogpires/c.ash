@@ -28,6 +28,6 @@ export interface FixedExpenseOccurrence { id: string; fixedExpenseId: string; re
 export interface FixedExpenseInput { description: string; amountCents: number; dueDay: number; accountId: string; categoryId: string }
 export interface ConfirmFixedExpenseOccurrenceInput { amountCents: number; occurrenceDate: string }
 export interface FixedExpensesOverview { expenses: FixedExpense[]; occurrences: FixedExpenseOccurrence[] }
-export interface BankStatementInput { accountId: string; bank: Bank; fileName: string; base64Pdf: string }
+export interface BankStatementInput { accountId: string; bank: Bank; fileName: string; base64Data: string }
 export interface BankStatementImportResult { bank: Bank; importedCount: number; duplicateCount: number; ignoredCount: number }
 export interface UpdateStatus { state: UpdateState; currentVersion: string; availableVersion?: string; releaseNotes?: string; publishedAt?: string; lastCheckedAt?: string; downloadedBytes?: number; totalBytes?: number; message?: string }

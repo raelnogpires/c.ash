@@ -50,7 +50,7 @@ export namespace application {
 	    accountId: string;
 	    bank: string;
 	    fileName: string;
-	    base64Pdf: string;
+	    base64Data: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new BankStatementInput(source);
@@ -61,7 +61,7 @@ export namespace application {
 	        this.accountId = source["accountId"];
 	        this.bank = source["bank"];
 	        this.fileName = source["fileName"];
-	        this.base64Pdf = source["base64Pdf"];
+	        this.base64Data = source["base64Data"];
 	    }
 	}
 	export class Bootstrap {

@@ -2,7 +2,9 @@ package application
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -203,6 +205,53 @@ func TestImportStatement_IsCumulativeDeduplicatedAndEditable(t *testing.T) {
 	third, err := service.importStatementEntries(ctx, account.ID, importer.BankInter, entries)
 	if err != nil || third.ImportedCount != 0 || third.DuplicateCount != 3 {
 		t.Fatalf("third=%+v err=%v", third, err)
+	}
+}
+
+func TestImportBankStatement_DispatchesCaseInsensitivelyAndDeduplicatesAcrossFormats(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	account, err := service.CreateAccount(ctx, AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningDate: "2026-08-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	csvData := "Data;Descrição;Valor\n02/08/2026;PIX JOAO;-25,90\n"
+	first, err := service.ImportBankStatement(ctx, BankStatementInput{AccountID: account.ID, Bank: importer.BankInter, FileName: "agosto.CSV", Base64Data: base64.StdEncoding.EncodeToString([]byte(csvData))})
+	if err != nil || first.ImportedCount != 1 {
+		t.Fatalf("CSV result=%+v err=%v", first, err)
+	}
+	ofxData := "OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\n<OFX><BANKTRANLIST><STMTTRN><DTPOSTED>20260802<TRNAMT>-25.90<NAME>PIX JOAO</STMTTRN></BANKTRANLIST></OFX>"
+	second, err := service.ImportBankStatement(ctx, BankStatementInput{AccountID: account.ID, Bank: importer.BankInter, FileName: "agosto.OFX", Base64Data: base64.StdEncoding.EncodeToString([]byte(ofxData))})
+	if err != nil || second.ImportedCount != 0 || second.DuplicateCount != 1 {
+		t.Fatalf("OFX result=%+v err=%v", second, err)
+	}
+	txs, err := service.ListTransactions(ctx)
+	if err != nil || len(txs) != 1 || txs[0].ImportBank != "inter" {
+		t.Fatalf("transactions=%+v err=%v", txs, err)
+	}
+}
+
+func TestImportBankStatement_ValidatesEnvelopeAndAccount(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	validCSV := base64.StdEncoding.EncodeToString([]byte("Data;Descrição;Valor\n01/08/2026;Teste;-10,00\n"))
+	tests := []struct {
+		name  string
+		input BankStatementInput
+		want  error
+	}{
+		{"unsupported extension", BankStatementInput{Bank: importer.BankItau, FileName: "statement.txt", Base64Data: validCSV}, domain.ErrInvalidStatement},
+		{"invalid base64", BankStatementInput{Bank: importer.BankItau, FileName: "statement.csv", Base64Data: "%%%"}, domain.ErrInvalidStatement},
+		{"unknown bank", BankStatementInput{Bank: "other", FileName: "statement.csv", Base64Data: validCSV}, domain.ErrUnsupportedBank},
+		{"unknown account", BankStatementInput{AccountID: "missing", Bank: importer.BankItau, FileName: "statement.csv", Base64Data: validCSV}, domain.ErrUnknownAccount},
+		{"encoded size limit", BankStatementInput{Bank: importer.BankItau, FileName: "statement.ofx", Base64Data: strings.Repeat("A", ((importer.MaxStatementSize+2)/3)*4+9)}, domain.ErrStatementTooLarge},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := service.ImportBankStatement(ctx, tc.input); !errors.Is(err, tc.want) {
+				t.Fatalf("error=%v want=%v", err, tc.want)
+			}
+		})
 	}
 }
 

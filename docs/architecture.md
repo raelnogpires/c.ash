@@ -100,10 +100,19 @@ escopo atual.
 
 ## Importação e exportação
 
-- OFX tem importador genérico.
-- CSV usa um assistente para mapear colunas e salvar modelos por banco.
-- Uma segunda importação apresenta possíveis duplicatas para confirmação; não
-  descarta transações silenciosamente.
+- PDF usa extratores específicos para Itaú, Bradesco e Inter; arquivos
+  protegidos por senha ou sem camada de texto são rejeitados.
+- OFX 1.x SGML e OFX 2.x XML usam um importador genérico de movimentações. A
+  instituição do arquivo não substitui o banco escolhido na interface.
+- CSV detecta vírgula, ponto e vírgula ou tabulação e infere automaticamente
+  cabeçalhos normalizados de data, descrição, valor, natureza, débito e crédito.
+  O importador aceita UTF-8 e Windows-1252, datas brasileiras e ISO e notações
+  decimais brasileiras e internacionais. Valores positivos sem sinal ou coluna
+  de natureza são rejeitados quando sua direção é ambígua.
+- PDF, OFX e CSV compartilham o limite de 15 MB e convergem para o mesmo lote
+  atômico. A assinatura de conta, banco, data, natureza, valor, descrição e
+  ocorrência evita duplicatas inclusive entre formatos, preservando a reserva
+  da assinatura depois de edição ou exclusão pelo usuário.
 - CSV é o formato de exportação tabular.
 - JSON representa uma cópia estruturada completa.
 - O backup integral preserva banco, versão e metadados necessários à restauração.

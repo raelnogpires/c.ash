@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -75,10 +76,10 @@ type ConfirmFixedExpenseOccurrenceInput struct {
 }
 
 type BankStatementInput struct {
-	AccountID string        `json:"accountId"`
-	Bank      importer.Bank `json:"bank"`
-	FileName  string        `json:"fileName"`
-	Base64PDF string        `json:"base64Pdf"`
+	AccountID  string        `json:"accountId"`
+	Bank       importer.Bank `json:"bank"`
+	FileName   string        `json:"fileName"`
+	Base64Data string        `json:"base64Data"`
 }
 
 type BankStatementImportResult struct {
@@ -393,20 +394,29 @@ func (s *Service) ImportBankStatement(ctx context.Context, in BankStatementInput
 	if !in.Bank.Valid() {
 		return result, domain.ErrUnsupportedBank
 	}
-	if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(in.FileName)), ".pdf") {
+	extension := strings.ToLower(filepath.Ext(strings.TrimSpace(in.FileName)))
+	if extension != ".pdf" && extension != ".ofx" && extension != ".csv" {
 		return result, domain.ErrInvalidStatement
 	}
-	if len(in.Base64PDF) > ((importer.MaxPDFSize+2)/3)*4+8 {
+	if len(in.Base64Data) > ((importer.MaxStatementSize+2)/3)*4+8 {
 		return result, domain.ErrStatementTooLarge
 	}
-	data, err := base64.StdEncoding.DecodeString(in.Base64PDF)
+	data, err := base64.StdEncoding.DecodeString(in.Base64Data)
 	if err != nil {
 		return result, domain.ErrInvalidStatement
 	}
-	if len(data) > importer.MaxPDFSize {
+	if len(data) > importer.MaxStatementSize {
 		return result, domain.ErrStatementTooLarge
 	}
-	entries, err := importer.ParsePDF(data, in.Bank, s.now().In(time.Local).Year())
+	var entries []importer.Entry
+	switch extension {
+	case ".pdf":
+		entries, err = importer.ParsePDF(data, in.Bank, s.now().In(time.Local).Year())
+	case ".ofx":
+		entries, err = importer.ParseOFX(data)
+	case ".csv":
+		entries, err = importer.ParseCSV(data)
+	}
 	if err != nil {
 		return result, err
 	}

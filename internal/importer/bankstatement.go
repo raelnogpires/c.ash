@@ -19,7 +19,11 @@ import (
 	"github.com/ledongthuc/pdf"
 )
 
-const MaxPDFSize = 15 << 20
+const MaxStatementSize = 15 << 20
+
+// MaxPDFSize is kept as an alias for callers compiled against the original
+// PDF-only importer.
+const MaxPDFSize = MaxStatementSize
 
 type Bank string
 
@@ -48,7 +52,7 @@ var (
 )
 
 func ParsePDF(data []byte, bank Bank, fallbackYear int) ([]Entry, error) {
-	if len(data) == 0 || len(data) > MaxPDFSize || !bytes.HasPrefix(data, []byte("%PDF-")) {
+	if len(data) == 0 || len(data) > MaxStatementSize || !bytes.HasPrefix(data, []byte("%PDF-")) {
 		return nil, domain.ErrInvalidStatement
 	}
 	reader, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))

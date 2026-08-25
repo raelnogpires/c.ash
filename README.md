@@ -162,11 +162,22 @@ Os dados de produção ficam em `c.ash/cash.db` sob o diretório de configuraç�
 do usuário da plataforma. Testes injetam caminhos temporários e não usam dados
 reais. Uma trava de arquivo impede duas instâncias de escreverem no mesmo banco.
 
-## Importação de extratos PDF
+## Importação de extratos PDF, OFX e CSV
 
-Na tela de movimentações, o usuário pode associar à conta um extrato PDF de até
-15 MB do Itaú, Bradesco ou Inter. O arquivo é lido localmente e não é preservado
-depois do processamento. A gravação do lote é atômica.
+Na tela de movimentações, o usuário pode associar à conta um extrato PDF, OFX ou
+CSV de até 15 MB e indicar Itaú, Bradesco ou Inter como origem. O arquivo é lido
+localmente e não é preservado depois do processamento. A gravação do lote é
+atômica. PDFs usam os layouts específicos dos três bancos; OFX 1.x e 2.x são
+lidos de forma genérica, sem substituir o banco selecionado pelos metadados do
+arquivo.
+
+No CSV, o aplicativo reconhece automaticamente delimitadores por vírgula,
+ponto e vírgula ou tabulação e cabeçalhos comuns de data, descrição, valor,
+tipo, débito e crédito. São aceitas datas brasileiras e ISO, valores brasileiros
+e internacionais, colunas com sinal, valores acompanhados de natureza e colunas
+separadas de débito/crédito. CSV em UTF-8 ou Windows-1252 é compatível; valores
+sem sinal ou natureza suficiente são rejeitados para evitar inverter receitas e
+despesas.
 
 Cada lançamento importado recebe uma origem automática e uma assinatura formada
 pela conta, banco, data, natureza, valor, descrição e ocorrência. Isso permite
