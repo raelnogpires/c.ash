@@ -151,7 +151,11 @@ Não há `git pull`, Go, Node, Wails ou Git na máquina de quem usa o aplicativo
 No Windows, a release entrega um instalador NSIS por usuário com o bootstrapper
 do WebView2. Em Ubuntu, Linux Mint e Debian, a release entrega um `.deb` que
 declara GTK3 e WebKitGTK; o sistema pode pedir a senha administrativa padrão,
-mas não exige comandos manuais. Releases são geradas por tags semânticas como
+mas não exige comandos manuais. Em macOS com Apple Silicon, a release entrega
+um arquivo `.zip` com o aplicativo, disponível para download na página da
+release do GitHub. Esse aplicativo não é assinado ou reconhecido pela Apple e
+pode exigir que a pessoa usuária confirme sua abertura no macOS; ele também não
+oferece atualização automática. Releases são geradas por tags semânticas como
 `v0.2.0` no GitHub Actions.
 
 Os dados de produção ficam em `c.ash/cash.db` sob o diretório de configuração

@@ -107,8 +107,41 @@ jobs:
           name: linux
           path: dist/cash_*_linux_amd64.deb
 
+  build-macos:
+    needs: validate
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build Apple Silicon application archive
+        env:
+          TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          VERSION="${TAG#v}"
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+          python3 -c "import json; p='cmd/cash/wails.json'; d=json.load(open(p)); d['info']={'companyName':'c.ash','productName':'[c]ash','productVersion':'${VERSION}','copyright':'c.ash'}; open(p,'w').write(json.dumps(d))"
+          (cd cmd/cash && wails build -s -platform darwin/arm64 -ldflags "-X main.version=${VERSION} -X main.commit=${SHA} -X main.repository=${REPOSITORY}")
+          test -d build/bin/cash.app
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent build/bin/cash.app "dist/cash_${VERSION}_darwin_arm64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/cash_*_darwin_arm64.zip
+
   publish:
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
