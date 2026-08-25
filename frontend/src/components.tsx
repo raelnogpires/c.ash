@@ -96,10 +96,10 @@ export function TransactionList({ transactions, empty, onEdit, onRemove }: { tra
   return <ul className="transaction-list" aria-label="Movimentações">
     {transactions.map((tx) => <li key={tx.id} className="transaction-row">
       <span className={`transaction-row__glyph ${tx.kind}`} aria-hidden="true"><Icon name={tx.kind === 'income' ? 'arrowUpRight' : tx.kind === 'expense' ? 'arrowDownRight' : 'arrowRightLeft'}/></span>
-      <span className="transaction-row__main"><span className="transaction-row__title"><strong>{tx.description}</strong>{tx.automaticImport && <span className="import-badge">Importação automática</span>}</span><small>{tx.kind === 'transfer' ? `${tx.accountName} para ${tx.destinationAccountName}` : `${tx.accountName}${tx.categoryName ? ` · ${tx.categoryName}` : ''}`}</small></span>
+      <span className="transaction-row__main"><span className="transaction-row__title"><strong>{tx.description}</strong>{tx.automaticImport && <span className="import-badge">Importação automática</span>}{tx.invoicePaymentId&&<span className="import-badge">Pagamento de fatura</span>}{(tx.installmentCount??1)>1&&<span className="import-badge">{tx.installmentCount}x</span>}</span><small>{tx.kind === 'transfer' ? `${tx.accountName} para ${tx.destinationAccountName}` : `${tx.accountName}${tx.categoryName ? ` · ${tx.categoryName}` : ''}`}</small></span>
       <span className="transaction-row__date">{formatDate(tx.occurrenceDate)}</span>
       <span className={`transaction-row__amount ${tx.kind}`}><span className="sr-only">{tx.kind === 'income' ? 'Receita' : tx.kind === 'expense' ? 'Despesa' : 'Transferência'}:</span>{tx.kind === 'income' ? '+ ' : tx.kind === 'expense' ? '− ' : ''}{formatBRL(tx.amountCents)}</span>
-      {(onEdit || onRemove) && <TransactionActions tx={tx} onEdit={onEdit} onRemove={onRemove}/>} 
+      {!tx.invoicePaymentId&&(onEdit || onRemove) && <TransactionActions tx={tx} onEdit={onEdit} onRemove={onRemove}/>}
     </li>)}
   </ul>
 }

@@ -44,6 +44,11 @@ type Queries interface {
 	FixedExpenseOccurrences(context.Context) ([]domain.FixedExpenseOccurrence, error)
 	FixedExpenseOccurrence(context.Context, string) (*domain.FixedExpenseOccurrence, error)
 	OccurrenceForTransaction(context.Context, string) (*domain.FixedExpenseOccurrence, error)
+	CreditCardInvoices(context.Context, string) ([]domain.CreditCardInvoice, error)
+	CreditCardInvoice(context.Context, string) (*domain.CreditCardInvoice, error)
+	InvoiceInstallments(context.Context, string) ([]domain.CreditCardInstallment, error)
+	TransactionInstallments(context.Context, string) ([]domain.CreditCardInstallment, error)
+	InvoicePayments(context.Context, string) ([]domain.CreditCardPayment, error)
 	SaveProfile(context.Context, domain.Profile, string) error
 	SetBalancesHidden(context.Context, bool, string) error
 	InsertAccount(context.Context, domain.Account, string) error
@@ -58,6 +63,12 @@ type Queries interface {
 	SetFixedExpenseArchivedAt(context.Context, string, string, string) error
 	InsertFixedExpenseOccurrence(context.Context, domain.FixedExpenseOccurrence, string) error
 	SetFixedExpenseOccurrence(context.Context, string, domain.FixedExpenseOccurrenceStatus, string, string) error
+	InsertCreditCardInvoice(context.Context, domain.CreditCardInvoice, string) error
+	UpdateCreditCardInvoice(context.Context, domain.CreditCardInvoiceStatus, int64, string, string) error
+	InsertCreditCardInstallment(context.Context, domain.CreditCardInstallment, string) error
+	DeleteTransactionInstallments(context.Context, string) error
+	UpdateTransactionInstallmentDescriptions(context.Context, string, string) error
+	InsertCreditCardPayment(context.Context, domain.CreditCardPayment) error
 }
 
 type dbQueries struct{ q sqlQuerier }
@@ -174,6 +185,12 @@ func (s *Store) Account(ctx context.Context, id string) (*domain.Account, error)
 func (s *Store) AccountTransactions(ctx context.Context, id string) ([]domain.Transaction, error) {
 	return s.queries().AccountTransactions(ctx, id)
 }
+func (s *Store) CreditCardInvoices(ctx context.Context, id string) ([]domain.CreditCardInvoice, error) {
+	return s.queries().CreditCardInvoices(ctx, id)
+}
+func (s *Store) CreditCardInvoice(ctx context.Context, id string) (*domain.CreditCardInvoice, error) {
+	return s.queries().CreditCardInvoice(ctx, id)
+}
 func (s *Store) Categories(ctx context.Context) ([]domain.Category, error) {
 	return s.queries().Categories(ctx)
 }
@@ -245,16 +262,26 @@ func (q *dbQueries) Profile(ctx context.Context) (*domain.Profile, error) {
 	return &p, err
 }
 
+const accountSelect = `SELECT id, name, type, opening_balance_cents, opening_date, created_at,
+credit_limit_cents, closing_day, due_day FROM accounts`
+
+func scanAccount(scanner interface{ Scan(...any) error }) (domain.Account, error) {
+	var a domain.Account
+	err := scanner.Scan(&a.ID, &a.Name, &a.Type, &a.OpeningBalanceCents, &a.OpeningDate, &a.CreatedAt,
+		&a.CreditLimitCents, &a.ClosingDay, &a.DueDay)
+	return a, err
+}
+
 func (q *dbQueries) Accounts(ctx context.Context) ([]domain.Account, error) {
-	rows, err := q.q.QueryContext(ctx, `SELECT id, name, type, opening_balance_cents, opening_date, created_at FROM accounts ORDER BY created_at, name`)
+	rows, err := q.q.QueryContext(ctx, accountSelect+` ORDER BY created_at, name`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	items := []domain.Account{}
 	for rows.Next() {
-		var a domain.Account
-		if err := rows.Scan(&a.ID, &a.Name, &a.Type, &a.OpeningBalanceCents, &a.OpeningDate, &a.CreatedAt); err != nil {
+		a, err := scanAccount(rows)
+		if err != nil {
 			return nil, err
 		}
 		items = append(items, a)
@@ -263,8 +290,7 @@ func (q *dbQueries) Accounts(ctx context.Context) ([]domain.Account, error) {
 }
 
 func (q *dbQueries) Account(ctx context.Context, id string) (*domain.Account, error) {
-	var a domain.Account
-	err := q.q.QueryRowContext(ctx, `SELECT id, name, type, opening_balance_cents, opening_date, created_at FROM accounts WHERE id = ?`, id).Scan(&a.ID, &a.Name, &a.Type, &a.OpeningBalanceCents, &a.OpeningDate, &a.CreatedAt)
+	a, err := scanAccount(q.q.QueryRowContext(ctx, accountSelect+` WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -319,7 +345,8 @@ COALESCE(t.destination_account_id, ''), COALESCE(destination.name, ''),
 COALESCE(t.category_id, ''), COALESCE(c.name, ''), t.description,
 t.occurrence_date, t.created_at, t.updated_at, COALESCE(t.deleted_at, ''),
 COALESCE(t.fixed_expense_occurrence_id, ''), t.automatic_import,
-COALESCE(t.import_bank, ''), COALESCE(t.import_key, '')
+COALESCE(t.import_bank, ''), COALESCE(t.import_key, ''), t.installment_count,
+COALESCE(t.invoice_payment_id, '')
 FROM transactions t
 JOIN accounts a ON a.id=t.account_id
 LEFT JOIN accounts destination ON destination.id=t.destination_account_id
@@ -330,7 +357,7 @@ func scanTransaction(scanner interface{ Scan(...any) error }) (domain.Transactio
 	err := scanner.Scan(&t.ID, &t.Kind, &t.AmountCents, &t.AccountID, &t.AccountName,
 		&t.DestinationAccountID, &t.DestinationAccountName, &t.CategoryID, &t.CategoryName,
 		&t.Description, &t.OccurrenceDate, &t.CreatedAt, &t.UpdatedAt, &t.DeletedAt, &t.FixedExpenseOccurrenceID,
-		&t.AutomaticImport, &t.ImportBank, &t.ImportKey)
+		&t.AutomaticImport, &t.ImportBank, &t.ImportKey, &t.InstallmentCount, &t.InvoicePaymentID)
 	return t, err
 }
 
@@ -369,20 +396,20 @@ func (q *dbQueries) SetBalancesHidden(ctx context.Context, hidden bool, at strin
 	if err != nil {
 		return err
 	}
-	count, err := result.RowsAffected()
-	if err == nil && count == 0 {
+	affected, err := result.RowsAffected()
+	if err == nil && affected == 0 {
 		return sql.ErrNoRows
 	}
 	return err
 }
 
 func (q *dbQueries) InsertAccount(ctx context.Context, a domain.Account, at string) error {
-	_, err := q.q.ExecContext(ctx, `INSERT INTO accounts(id,name,type,opening_balance_cents,opening_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, a.ID, a.Name, a.Type, a.OpeningBalanceCents, a.OpeningDate, at, at)
+	_, err := q.q.ExecContext(ctx, `INSERT INTO accounts(id,name,type,opening_balance_cents,opening_date,created_at,updated_at,credit_limit_cents,closing_day,due_day) VALUES(?,?,?,?,?,?,?,?,?,?)`, a.ID, a.Name, a.Type, a.OpeningBalanceCents, a.OpeningDate, at, at, a.CreditLimitCents, a.ClosingDay, a.DueDay)
 	return err
 }
 
 func (q *dbQueries) UpdateAccount(ctx context.Context, a domain.Account, at string) error {
-	result, err := q.q.ExecContext(ctx, `UPDATE accounts SET name=?, type=?, opening_balance_cents=?, opening_date=?, updated_at=? WHERE id=?`, a.Name, a.Type, a.OpeningBalanceCents, a.OpeningDate, at, a.ID)
+	result, err := q.q.ExecContext(ctx, `UPDATE accounts SET name=?, type=?, opening_balance_cents=?, opening_date=?, credit_limit_cents=?, closing_day=?, due_day=?, updated_at=? WHERE id=?`, a.Name, a.Type, a.OpeningBalanceCents, a.OpeningDate, a.CreditLimitCents, a.ClosingDay, a.DueDay, at, a.ID)
 	if err != nil {
 		return err
 	}
@@ -425,7 +452,15 @@ func (q *dbQueries) InsertTransaction(ctx context.Context, t domain.Transaction,
 	if t.ImportKey != "" {
 		importKey = t.ImportKey
 	}
-	_, err := q.q.ExecContext(ctx, `INSERT INTO transactions(id,kind,amount_cents,account_id,destination_account_id,category_id,description,occurrence_date,created_at,updated_at,fixed_expense_occurrence_id,automatic_import,import_bank,import_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t.ID, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, at, at, fixedOccurrence, t.AutomaticImport, importBank, importKey)
+	count := t.InstallmentCount
+	if count == 0 {
+		count = 1
+	}
+	var payment any
+	if t.InvoicePaymentID != "" {
+		payment = t.InvoicePaymentID
+	}
+	_, err := q.q.ExecContext(ctx, `INSERT INTO transactions(id,kind,amount_cents,account_id,destination_account_id,category_id,description,occurrence_date,created_at,updated_at,fixed_expense_occurrence_id,automatic_import,import_bank,import_key,installment_count,invoice_payment_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t.ID, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, at, at, fixedOccurrence, t.AutomaticImport, importBank, importKey, count, payment)
 	return err
 }
 
@@ -437,12 +472,16 @@ func (q *dbQueries) UpdateTransaction(ctx context.Context, t domain.Transaction,
 	if t.DestinationAccountID != "" {
 		destination = t.DestinationAccountID
 	}
-	result, err := q.q.ExecContext(ctx, `UPDATE transactions SET kind=?, amount_cents=?, account_id=?, destination_account_id=?, category_id=?, description=?, occurrence_date=?, updated_at=? WHERE id=?`, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, at, t.ID)
+	count := t.InstallmentCount
+	if count == 0 {
+		count = 1
+	}
+	result, err := q.q.ExecContext(ctx, `UPDATE transactions SET kind=?, amount_cents=?, account_id=?, destination_account_id=?, category_id=?, description=?, occurrence_date=?, installment_count=?, updated_at=? WHERE id=?`, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, count, at, t.ID)
 	if err != nil {
 		return err
 	}
-	count, err := result.RowsAffected()
-	if err == nil && count == 0 {
+	affected, err := result.RowsAffected()
+	if err == nil && affected == 0 {
 		return domain.ErrUnknownTransaction
 	}
 	return err
@@ -612,5 +651,149 @@ func (q *dbQueries) SetFixedExpenseOccurrence(ctx context.Context, id string, st
 	if err == nil && count == 0 {
 		return domain.ErrUnknownOccurrence
 	}
+	return err
+}
+
+const creditCardInvoiceSelect = `SELECT i.id, i.account_id, a.name, i.reference_month,
+i.closing_date, i.due_date, i.status, i.carry_forward_cents
+FROM credit_card_invoices i JOIN accounts a ON a.id=i.account_id`
+
+func scanCreditCardInvoice(scanner interface{ Scan(...any) error }) (domain.CreditCardInvoice, error) {
+	var invoice domain.CreditCardInvoice
+	err := scanner.Scan(&invoice.ID, &invoice.AccountID, &invoice.AccountName, &invoice.ReferenceMonth,
+		&invoice.ClosingDate, &invoice.DueDate, &invoice.Status, &invoice.CarryForwardCents)
+	invoice.Installments = []domain.CreditCardInstallment{}
+	invoice.Payments = []domain.CreditCardPayment{}
+	return invoice, err
+}
+
+func (q *dbQueries) CreditCardInvoices(ctx context.Context, accountID string) ([]domain.CreditCardInvoice, error) {
+	rows, err := q.q.QueryContext(ctx, creditCardInvoiceSelect+` WHERE i.account_id=? ORDER BY i.closing_date`, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []domain.CreditCardInvoice{}
+	for rows.Next() {
+		item, err := scanCreditCardInvoice(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (q *dbQueries) CreditCardInvoice(ctx context.Context, id string) (*domain.CreditCardInvoice, error) {
+	item, err := scanCreditCardInvoice(q.q.QueryRowContext(ctx, creditCardInvoiceSelect+` WHERE i.id=?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &item, err
+}
+
+func (q *dbQueries) InvoiceInstallments(ctx context.Context, invoiceID string) ([]domain.CreditCardInstallment, error) {
+	rows, err := q.q.QueryContext(ctx, `SELECT x.id, x.invoice_id, COALESCE(x.transaction_id,''), x.description,
+x.amount_cents, x.installment_number, x.installment_count, x.opening_debt
+FROM credit_card_installments x LEFT JOIN transactions t ON t.id=x.transaction_id
+WHERE x.invoice_id=? AND (x.transaction_id IS NULL OR t.deleted_at IS NULL)
+ORDER BY x.installment_number, x.created_at`, invoiceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanInstallments(rows)
+}
+
+func (q *dbQueries) TransactionInstallments(ctx context.Context, transactionID string) ([]domain.CreditCardInstallment, error) {
+	return q.installments(ctx, ` WHERE x.transaction_id=? ORDER BY x.installment_number`, transactionID)
+}
+
+func (q *dbQueries) installments(ctx context.Context, where string, value string) ([]domain.CreditCardInstallment, error) {
+	rows, err := q.q.QueryContext(ctx, `SELECT x.id, x.invoice_id, COALESCE(x.transaction_id,''), x.description,
+x.amount_cents, x.installment_number, x.installment_count, x.opening_debt
+FROM credit_card_installments x`+where, value)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanInstallments(rows)
+}
+
+func scanInstallments(rows *sql.Rows) ([]domain.CreditCardInstallment, error) {
+	items := []domain.CreditCardInstallment{}
+	for rows.Next() {
+		var item domain.CreditCardInstallment
+		if err := rows.Scan(&item.ID, &item.InvoiceID, &item.TransactionID, &item.Description, &item.AmountCents,
+			&item.InstallmentNumber, &item.InstallmentCount, &item.OpeningDebt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (q *dbQueries) InvoicePayments(ctx context.Context, invoiceID string) ([]domain.CreditCardPayment, error) {
+	rows, err := q.q.QueryContext(ctx, `SELECT p.id, p.invoice_id, p.source_account_id, a.name,
+p.transaction_id, p.amount_cents, p.occurrence_date, p.created_at
+FROM credit_card_payments p JOIN accounts a ON a.id=p.source_account_id
+WHERE p.invoice_id=? ORDER BY p.occurrence_date, p.created_at`, invoiceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []domain.CreditCardPayment{}
+	for rows.Next() {
+		var item domain.CreditCardPayment
+		if err := rows.Scan(&item.ID, &item.InvoiceID, &item.AccountID, &item.AccountName, &item.TransactionID,
+			&item.AmountCents, &item.OccurrenceDate, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (q *dbQueries) InsertCreditCardInvoice(ctx context.Context, invoice domain.CreditCardInvoice, at string) error {
+	_, err := q.q.ExecContext(ctx, `INSERT INTO credit_card_invoices(id,account_id,reference_month,closing_date,due_date,status,carry_forward_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)`,
+		invoice.ID, invoice.AccountID, invoice.ReferenceMonth, invoice.ClosingDate, invoice.DueDate, invoice.Status, invoice.CarryForwardCents, at, at)
+	return err
+}
+
+func (q *dbQueries) UpdateCreditCardInvoice(ctx context.Context, status domain.CreditCardInvoiceStatus, carry int64, id, at string) error {
+	result, err := q.q.ExecContext(ctx, `UPDATE credit_card_invoices SET status=?, carry_forward_cents=?, updated_at=? WHERE id=?`, status, carry, at, id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return domain.ErrUnknownInvoice
+	}
+	return err
+}
+
+func (q *dbQueries) InsertCreditCardInstallment(ctx context.Context, item domain.CreditCardInstallment, at string) error {
+	var transaction any
+	if item.TransactionID != "" {
+		transaction = item.TransactionID
+	}
+	_, err := q.q.ExecContext(ctx, `INSERT INTO credit_card_installments(id,invoice_id,transaction_id,description,amount_cents,installment_number,installment_count,opening_debt,created_at) VALUES(?,?,?,?,?,?,?,?,?)`,
+		item.ID, item.InvoiceID, transaction, item.Description, item.AmountCents, item.InstallmentNumber, item.InstallmentCount, item.OpeningDebt, at)
+	return err
+}
+
+func (q *dbQueries) DeleteTransactionInstallments(ctx context.Context, transactionID string) error {
+	_, err := q.q.ExecContext(ctx, `DELETE FROM credit_card_installments WHERE transaction_id=?`, transactionID)
+	return err
+}
+
+func (q *dbQueries) UpdateTransactionInstallmentDescriptions(ctx context.Context, transactionID, description string) error {
+	_, err := q.q.ExecContext(ctx, `UPDATE credit_card_installments SET description=? WHERE transaction_id=?`, description, transactionID)
+	return err
+}
+
+func (q *dbQueries) InsertCreditCardPayment(ctx context.Context, payment domain.CreditCardPayment) error {
+	_, err := q.q.ExecContext(ctx, `INSERT INTO credit_card_payments(id,invoice_id,source_account_id,transaction_id,amount_cents,occurrence_date,created_at) VALUES(?,?,?,?,?,?,?)`,
+		payment.ID, payment.InvoiceID, payment.AccountID, payment.TransactionID, payment.AmountCents, payment.OccurrenceDate, payment.CreatedAt)
 	return err
 }

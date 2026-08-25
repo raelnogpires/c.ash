@@ -19,9 +19,10 @@ const (
 type AccountType string
 
 const (
-	AccountChecking AccountType = "checking"
-	AccountSavings  AccountType = "savings"
-	AccountCash     AccountType = "cash"
+	AccountChecking   AccountType = "checking"
+	AccountSavings    AccountType = "savings"
+	AccountCash       AccountType = "cash"
+	AccountCreditCard AccountType = "credit_card"
 )
 
 type TransactionKind string
@@ -33,34 +34,42 @@ const (
 )
 
 var (
-	ErrBlankName            = errors.New("blank name")
-	ErrBlankDescription     = errors.New("blank description")
-	ErrInvalidAmount        = errors.New("amount must be positive")
-	ErrInvalidDate          = errors.New("invalid civil date")
-	ErrFutureDate           = errors.New("date is in the future")
-	ErrBeforeOpening        = errors.New("date is before account opening")
-	ErrInvalidAccountType   = errors.New("invalid account type")
-	ErrInvalidKind          = errors.New("invalid transaction kind")
-	ErrInvalidTheme         = errors.New("invalid theme")
-	ErrUnknownAccount       = errors.New("unknown account")
-	ErrAccountInUse         = errors.New("account is in use")
-	ErrUnknownCategory      = errors.New("unknown category")
-	ErrCategoryKind         = errors.New("category kind does not match transaction")
-	ErrSameTransferAccount  = errors.New("transfer accounts must be distinct")
-	ErrTransferCategory     = errors.New("transfer cannot have category")
-	ErrSavingsNegative      = errors.New("savings account cannot be negative")
-	ErrUnknownTransaction   = errors.New("unknown transaction")
-	ErrTransactionActive    = errors.New("transaction is already active")
-	ErrTransactionTrashed   = errors.New("transaction is already trashed")
-	ErrInvalidDueDay        = errors.New("invalid due day")
-	ErrUnknownFixedExpense  = errors.New("unknown fixed expense")
-	ErrUnknownOccurrence    = errors.New("unknown fixed expense occurrence")
-	ErrOccurrenceClosed     = errors.New("fixed expense occurrence is not pending")
-	ErrFixedExpenseArchived = errors.New("fixed expense is archived")
-	ErrInvalidStatement     = errors.New("invalid bank statement")
-	ErrUnsupportedBank      = errors.New("unsupported bank")
-	ErrStatementEmpty       = errors.New("bank statement has no transactions")
-	ErrStatementTooLarge    = errors.New("bank statement is too large")
+	ErrBlankName             = errors.New("blank name")
+	ErrBlankDescription      = errors.New("blank description")
+	ErrInvalidAmount         = errors.New("amount must be positive")
+	ErrInvalidDate           = errors.New("invalid civil date")
+	ErrFutureDate            = errors.New("date is in the future")
+	ErrBeforeOpening         = errors.New("date is before account opening")
+	ErrInvalidAccountType    = errors.New("invalid account type")
+	ErrInvalidKind           = errors.New("invalid transaction kind")
+	ErrInvalidTheme          = errors.New("invalid theme")
+	ErrUnknownAccount        = errors.New("unknown account")
+	ErrAccountInUse          = errors.New("account is in use")
+	ErrUnknownCategory       = errors.New("unknown category")
+	ErrCategoryKind          = errors.New("category kind does not match transaction")
+	ErrSameTransferAccount   = errors.New("transfer accounts must be distinct")
+	ErrTransferCategory      = errors.New("transfer cannot have category")
+	ErrSavingsNegative       = errors.New("savings account cannot be negative")
+	ErrUnknownTransaction    = errors.New("unknown transaction")
+	ErrTransactionActive     = errors.New("transaction is already active")
+	ErrTransactionTrashed    = errors.New("transaction is already trashed")
+	ErrInvalidDueDay         = errors.New("invalid due day")
+	ErrUnknownFixedExpense   = errors.New("unknown fixed expense")
+	ErrUnknownOccurrence     = errors.New("unknown fixed expense occurrence")
+	ErrOccurrenceClosed      = errors.New("fixed expense occurrence is not pending")
+	ErrFixedExpenseArchived  = errors.New("fixed expense is archived")
+	ErrInvalidStatement      = errors.New("invalid bank statement")
+	ErrUnsupportedBank       = errors.New("unsupported bank")
+	ErrStatementEmpty        = errors.New("bank statement has no transactions")
+	ErrStatementTooLarge     = errors.New("bank statement is too large")
+	ErrInvalidCreditLimit    = errors.New("invalid credit limit")
+	ErrInvalidInstallments   = errors.New("invalid installment count")
+	ErrCardTransaction       = errors.New("invalid credit card transaction")
+	ErrInvoiceLocked         = errors.New("credit card invoice is locked")
+	ErrUnknownInvoice        = errors.New("unknown credit card invoice")
+	ErrInvoiceNotPayable     = errors.New("credit card invoice is not payable")
+	ErrInvalidPaymentAccount = errors.New("invalid invoice payment account")
+	ErrInvoiceOverpayment    = errors.New("invoice payment exceeds outstanding amount")
 )
 
 type Profile struct {
@@ -79,6 +88,9 @@ type Account struct {
 	OpeningDate         string      `json:"openingDate"`
 	CreatedAt           string      `json:"createdAt"`
 	CurrentBalanceCents int64       `json:"currentBalanceCents"`
+	CreditLimitCents    int64       `json:"creditLimitCents,omitempty"`
+	ClosingDay          int         `json:"closingDay,omitempty"`
+	DueDay              int         `json:"dueDay,omitempty"`
 }
 
 type Category struct {
@@ -106,6 +118,62 @@ type Transaction struct {
 	AutomaticImport          bool            `json:"automaticImport"`
 	ImportBank               string          `json:"importBank,omitempty"`
 	ImportKey                string          `json:"-"`
+	InstallmentCount         int             `json:"installmentCount,omitempty"`
+	InvoicePaymentID         string          `json:"invoicePaymentId,omitempty"`
+}
+
+type CreditCardInvoiceStatus string
+
+const (
+	InvoiceOpen       CreditCardInvoiceStatus = "open"
+	InvoiceClosed     CreditCardInvoiceStatus = "closed"
+	InvoicePaid       CreditCardInvoiceStatus = "paid"
+	InvoiceRolledOver CreditCardInvoiceStatus = "rolled_over"
+)
+
+type CreditCardInvoice struct {
+	ID                string                  `json:"id"`
+	AccountID         string                  `json:"accountId"`
+	AccountName       string                  `json:"accountName"`
+	ReferenceMonth    string                  `json:"referenceMonth"`
+	ClosingDate       string                  `json:"closingDate"`
+	DueDate           string                  `json:"dueDate"`
+	Status            CreditCardInvoiceStatus `json:"status"`
+	ChargesCents      int64                   `json:"chargesCents"`
+	CarryForwardCents int64                   `json:"carryForwardCents"`
+	PaidCents         int64                   `json:"paidCents"`
+	OutstandingCents  int64                   `json:"outstandingCents"`
+	Installments      []CreditCardInstallment `json:"installments"`
+	Payments          []CreditCardPayment     `json:"payments"`
+}
+
+type CreditCardInstallment struct {
+	ID                string `json:"id"`
+	InvoiceID         string `json:"invoiceId"`
+	TransactionID     string `json:"transactionId,omitempty"`
+	Description       string `json:"description"`
+	AmountCents       int64  `json:"amountCents"`
+	InstallmentNumber int    `json:"installmentNumber"`
+	InstallmentCount  int    `json:"installmentCount"`
+	OpeningDebt       bool   `json:"openingDebt"`
+}
+
+type CreditCardPayment struct {
+	ID             string `json:"id"`
+	InvoiceID      string `json:"invoiceId"`
+	AccountID      string `json:"accountId"`
+	AccountName    string `json:"accountName"`
+	TransactionID  string `json:"transactionId"`
+	AmountCents    int64  `json:"amountCents"`
+	OccurrenceDate string `json:"occurrenceDate"`
+	CreatedAt      string `json:"createdAt"`
+}
+
+type CreditCardSummary struct {
+	Account             Account            `json:"account"`
+	OutstandingCents    int64              `json:"outstandingCents"`
+	AvailableLimitCents int64              `json:"availableLimitCents"`
+	CurrentInvoice      *CreditCardInvoice `json:"currentInvoice,omitempty"`
 }
 
 type FixedExpense struct {
@@ -170,6 +238,8 @@ type Dashboard struct {
 	BalanceHistory            []BalanceHistoryPoint `json:"balanceHistory"`
 	AccountAllocations        []AccountAllocation   `json:"accountAllocations"`
 	HasNegativeBalance        bool                  `json:"hasNegativeBalance"`
+	CreditCardDebtCents       int64                 `json:"creditCardDebtCents"`
+	UpcomingInvoices          []CreditCardInvoice   `json:"upcomingInvoices"`
 }
 
 func ParseCivilDate(value string) (time.Time, error) {
@@ -193,7 +263,7 @@ func ValidateAccount(name string, accountType AccountType, openingDate string, n
 	if strings.TrimSpace(name) == "" {
 		return ErrBlankName
 	}
-	if accountType != AccountChecking && accountType != AccountSavings && accountType != AccountCash {
+	if accountType != AccountChecking && accountType != AccountSavings && accountType != AccountCash && accountType != AccountCreditCard {
 		return ErrInvalidAccountType
 	}
 	date, err := ParseCivilDate(openingDate)
@@ -203,6 +273,19 @@ func ValidateAccount(name string, accountType AccountType, openingDate string, n
 	today, _ := ParseCivilDate(now.In(time.Local).Format("2006-01-02"))
 	if date.After(today) {
 		return ErrFutureDate
+	}
+	return nil
+}
+
+func ValidateCreditCard(account Account) error {
+	if account.Type != AccountCreditCard {
+		return nil
+	}
+	if account.CreditLimitCents <= 0 {
+		return ErrInvalidCreditLimit
+	}
+	if account.ClosingDay < 1 || account.ClosingDay > 31 || account.DueDay < 1 || account.DueDay > 31 {
+		return ErrInvalidDueDay
 	}
 	return nil
 }
@@ -233,6 +316,19 @@ func ValidateTransaction(tx Transaction, account Account, destination *Account, 
 	if tx.AmountCents <= 0 {
 		return ErrInvalidAmount
 	}
+	if tx.InstallmentCount == 0 {
+		tx.InstallmentCount = 1
+	}
+	if tx.InstallmentCount < 1 || tx.InstallmentCount > 48 {
+		return ErrInvalidInstallments
+	}
+	if account.Type == AccountCreditCard {
+		if tx.Kind != Expense || destination != nil || tx.InvoicePaymentID != "" {
+			return ErrCardTransaction
+		}
+	} else if tx.InstallmentCount != 1 {
+		return ErrInvalidInstallments
+	}
 	if tx.Kind != Transfer && strings.TrimSpace(tx.Description) == "" {
 		return ErrBlankDescription
 	}
@@ -258,6 +354,9 @@ func ValidateTransaction(tx Transaction, account Account, destination *Account, 
 		if account.ID == destination.ID {
 			return ErrSameTransferAccount
 		}
+		if (account.Type == AccountCreditCard || destination.Type == AccountCreditCard) && tx.InvoicePaymentID == "" {
+			return ErrCardTransaction
+		}
 		destinationOpening, err := ParseCivilDate(destination.OpeningDate)
 		if err != nil {
 			return err
@@ -274,6 +373,47 @@ func ValidateTransaction(tx Transaction, account Account, destination *Account, 
 		return ErrCategoryKind
 	}
 	return nil
+}
+
+// CreditCardCycle returns the closing and due dates of the invoice that receives
+// a purchase. The closing day itself is treated as already closed.
+func CreditCardCycle(purchase time.Time, closingDay, dueDay int) (time.Time, time.Time) {
+	location := purchase.Location()
+	closing := civilDay(purchase.Year(), purchase.Month(), closingDay, location)
+	if !purchase.Before(closing) {
+		closing = civilDay(purchase.Year(), purchase.Month()+1, closingDay, location)
+	}
+	dueMonth := closing.Month()
+	dueYear := closing.Year()
+	if dueDay <= closingDay {
+		dueMonth++
+	}
+	due := civilDay(dueYear, dueMonth, dueDay, location)
+	return closing, due
+}
+
+func civilDay(year int, month time.Month, day int, location *time.Location) time.Time {
+	last := time.Date(year, month+1, 0, 0, 0, 0, 0, location).Day()
+	if day > last {
+		day = last
+	}
+	return time.Date(year, month, day, 0, 0, 0, 0, location)
+}
+
+func InstallmentAmounts(total int64, count int) ([]int64, error) {
+	if total <= 0 {
+		return nil, ErrInvalidAmount
+	}
+	if count < 1 || count > 48 {
+		return nil, ErrInvalidInstallments
+	}
+	items := make([]int64, count)
+	base, remainder := total/int64(count), total%int64(count)
+	for index := range items {
+		items[index] = base
+	}
+	items[0] += remainder
+	return items, nil
 }
 
 func SignedAmount(kind TransactionKind, cents int64) int64 {
@@ -349,7 +489,7 @@ func ValidateSavingsBalances(accounts []Account, transactions []Transaction) err
 }
 
 func CalculateDashboard(accounts []Account, transactions []Transaction, now time.Time) Dashboard {
-	result := Dashboard{RecentTransactions: []Transaction{}, BalanceHistory: []BalanceHistoryPoint{}, AccountAllocations: []AccountAllocation{}}
+	result := Dashboard{RecentTransactions: []Transaction{}, BalanceHistory: []BalanceHistoryPoint{}, AccountAllocations: []AccountAllocation{}, UpcomingInvoices: []CreditCardInvoice{}}
 	balances := make(map[string]int64, len(accounts))
 	accountsByID := make(map[string]Account, len(accounts))
 	for _, account := range accounts {
@@ -367,10 +507,14 @@ func CalculateDashboard(accounts []Account, transactions []Transaction, now time
 			}
 		}
 	}
-	for _, balance := range balances {
-		result.AvailableBalanceCents += balance
+	for id, balance := range balances {
+		if accountsByID[id].Type != AccountCreditCard {
+			result.AvailableBalanceCents += balance
+		} else if balance < 0 {
+			result.CreditCardDebtCents -= balance
+		}
+		result.TotalBalanceCents += balance
 	}
-	result.TotalBalanceCents = result.AvailableBalanceCents
 	result.HasNegativeBalance = result.TotalBalanceCents < 0
 	// Keep the JSON contract stable for the frontend: an empty list must be
 	// encoded as [] rather than null.
@@ -387,6 +531,9 @@ func CalculateDashboard(accounts []Account, transactions []Transaction, now time
 	result.RecentTransactions = sorted
 	result.BalanceHistory = calculateBalanceHistory(accounts, transactions, now)
 	for _, account := range accounts {
+		if account.Type == AccountCreditCard {
+			continue
+		}
 		result.AccountAllocations = append(result.AccountAllocations, AccountAllocation{AccountID: account.ID, AccountName: account.Name, BalanceCents: account.CurrentBalanceCents})
 	}
 	sort.SliceStable(result.AccountAllocations, func(i, j int) bool {
@@ -414,7 +561,7 @@ func CalculateDashboardWithFixedExpenses(accounts []Account, transactions []Tran
 		result.PendingFixedExpensesCents += occurrence.ExpectedAmountCents
 		result.PendingFixedExpenseCount++
 	}
-	result.AvailableBalanceCents = result.TotalBalanceCents - result.PendingFixedExpensesCents
+	result.AvailableBalanceCents -= result.PendingFixedExpensesCents
 	return result
 }
 
@@ -427,19 +574,24 @@ func calculateBalanceHistory(accounts []Account, transactions []Transaction, now
 		if offset == 0 {
 			cutoff = localNow
 		}
-		balance := int64(0)
+		balances := make(map[string]int64, len(accounts))
+		accountsByID := make(map[string]Account, len(accounts))
 		for _, account := range accounts {
+			accountsByID[account.ID] = account
 			opened, err := ParseCivilDate(account.OpeningDate)
 			if err == nil && !opened.After(cutoff) {
-				balance += account.OpeningBalanceCents
+				balances[account.ID] = account.OpeningBalanceCents
 			}
 		}
 		for _, tx := range transactions {
 			date, err := ParseCivilDate(tx.OccurrenceDate)
-			account, found := accountByID(accounts, tx.AccountID)
-			if err == nil && !date.After(cutoff) && (!found || TransactionAffectsBalance(account, tx)) {
-				balance += SignedAmount(tx.Kind, tx.AmountCents)
+			if err == nil && !date.After(cutoff) {
+				ApplyTransactionWithAccounts(balances, accountsByID, tx)
 			}
+		}
+		balance := int64(0)
+		for _, value := range balances {
+			balance += value
 		}
 		points = append(points, BalanceHistoryPoint{Month: monthStart.Format("2006-01"), Label: monthStart.Format("Jan"), BalanceCents: balance})
 	}

@@ -62,6 +62,14 @@ export function ListTransactions() {
   return window['go']['desktop']['App']['ListTransactions']();
 }
 
+export function CreditCardsOverview() {
+  return window['go']['desktop']['App']['CreditCardsOverview']();
+}
+
+export function PayCreditCardInvoice(arg1, arg2) {
+  return window['go']['desktop']['App']['PayCreditCardInvoice'](arg1, arg2);
+}
+
 export function ReopenFixedExpenseOccurrence(arg1) {
   return window['go']['desktop']['App']['ReopenFixedExpenseOccurrence'](arg1);
 }

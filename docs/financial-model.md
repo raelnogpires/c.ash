@@ -6,14 +6,16 @@ O modelo é baseado em contas reais. Uma movimentação altera uma conta; uma
 transferência move dinheiro entre contas próprias sem virar receita ou despesa.
 Totais derivados são sempre recalculáveis a partir dos registros persistidos.
 
-Esta fatia oferece três tipos de conta:
+Esta fatia oferece quatro tipos de conta:
 
 - conta corrente;
 - carteira ou dinheiro;
 - poupança.
+- cartão de crédito.
 
-Cartão de crédito continua fora do modelo executável até que fechamento,
-vencimento e pagamento de fatura tenham regras próprias.
+Cartões são passivos: não entram no saldo disponível, mas o valor em aberto é
+subtraído do patrimônio total. O pagamento reduz uma conta de dinheiro e a
+dívida do cartão pelo mesmo valor, sem criar uma segunda despesa.
 
 Conta corrente e carteira podem ficar negativas, com alerta. Cada conta começa
 com um saldo inicial datado. Diferenças posteriores são corrigidas por um ajuste
@@ -65,8 +67,15 @@ as invariantes, inclusive o saldo de Poupança.
 
 Cartões possuem limite, data de fechamento, vencimento, compras e faturas. Uma
 compra parcelada gera todo o cronograma e mantém o vínculo com a compra original.
-O usuário pode alterar uma parcela ou as parcelas futuras, preservando o que já
-foi consolidado.
+No fluxo atual, a compra inteira é reconhecida como despesa na data da compra;
+as parcelas determinam somente em quais faturas o valor será cobrado. O dia de
+fechamento já pertence ao ciclo seguinte. Valores são divididos igualmente e
+qualquer diferença de centavos fica na primeira parcela.
+
+Compras podem ser alteradas enquanto todas as faturas afetadas estiverem abertas
+e sem pagamentos. Depois do fechamento ou de qualquer pagamento, o cronograma é
+preservado. Uma fatura anterior opcional pode ser informada ao cadastrar o cartão
+sem gerar uma despesa histórica.
 
 Pagamentos totais e parciais são aceitos. Saldo não pago passa para a fatura
 seguinte. O MVP não calcula automaticamente juros rotativos; juros cobrados são

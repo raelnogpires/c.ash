@@ -19,7 +19,7 @@ func TestOpen_MigratesReopensAndLocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	var migrations int
-	if err := first.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrations); err != nil || migrations != 4 {
+	if err := first.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrations); err != nil || migrations != 5 {
 		t.Fatalf("migrations=%d err=%v", migrations, err)
 	}
 	categories, err := first.Categories(ctx)
@@ -83,6 +83,9 @@ func TestMigration_UpgradesExistingDataWithoutLoss(t *testing.T) {
 	}
 	if _, err := db.Exec(`INSERT INTO accounts(id,name,type,opening_balance_cents,opening_date,created_at,updated_at) VALUES('s','Reserva','savings',0,'2026-08-01','x','x')`); err != nil {
 		t.Fatalf("savings constraint not upgraded: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO accounts(id,name,type,opening_balance_cents,opening_date,created_at,updated_at,credit_limit_cents,closing_day,due_day) VALUES('card','Cartão','credit_card',0,'2026-08-01','x','x',10000,25,2)`); err != nil {
+		t.Fatalf("credit-card constraint not upgraded: %v", err)
 	}
 }
 

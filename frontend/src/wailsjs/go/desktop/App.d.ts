@@ -33,6 +33,10 @@ export function InstallUpdate():Promise<any>;
 
 export function ListTransactions():Promise<Array<domain.Transaction>>;
 
+export function CreditCardsOverview():Promise<application.CreditCardsOverview>;
+
+export function PayCreditCardInvoice(arg1:string,arg2:application.CreditCardPaymentInput):Promise<domain.CreditCardPayment>;
+
 export function ReopenFixedExpenseOccurrence(arg1:string):Promise<void>;
 
 export function RestoreFixedExpense(arg1:string):Promise<void>;

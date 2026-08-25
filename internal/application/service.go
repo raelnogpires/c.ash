@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -24,6 +25,11 @@ type AccountInput struct {
 	Type                domain.AccountType `json:"type"`
 	OpeningBalanceCents int64              `json:"openingBalanceCents"`
 	OpeningDate         string             `json:"openingDate"`
+	CreditLimitCents    int64              `json:"creditLimitCents"`
+	ClosingDay          int                `json:"closingDay"`
+	DueDay              int                `json:"dueDay"`
+	OpeningDebtCents    int64              `json:"openingDebtCents"`
+	OpeningDebtDueDate  string             `json:"openingDebtDueDate"`
 }
 
 type OnboardingInput struct {
@@ -41,6 +47,18 @@ type TransactionInput struct {
 	CategoryID           string                 `json:"categoryId"`
 	Description          string                 `json:"description"`
 	OccurrenceDate       string                 `json:"occurrenceDate"`
+	InstallmentCount     int                    `json:"installmentCount"`
+}
+
+type CreditCardPaymentInput struct {
+	AccountID      string `json:"accountId"`
+	AmountCents    int64  `json:"amountCents"`
+	OccurrenceDate string `json:"occurrenceDate"`
+}
+
+type CreditCardsOverview struct {
+	Cards    []domain.CreditCardSummary `json:"cards"`
+	Invoices []domain.CreditCardInvoice `json:"invoices"`
 }
 
 type FixedExpenseInput struct {
@@ -138,7 +156,20 @@ func (s *Service) Bootstrap(ctx context.Context) (Bootstrap, error) {
 	if p != nil {
 		theme = p.Theme
 	}
-	return Bootstrap{Profile: p, Setup: p != nil, Accounts: accounts, Categories: categories, Dashboard: domain.CalculateDashboardWithFixedExpenses(accounts, txs, occurrences, s.now()), Theme: theme}, nil
+	dashboard := domain.CalculateDashboardWithFixedExpenses(accounts, txs, occurrences, s.now())
+	overview, err := s.creditCardsOverview(ctx)
+	if err != nil {
+		return Bootstrap{}, err
+	}
+	for _, invoice := range overview.Invoices {
+		if invoice.Status == domain.InvoiceOpen || invoice.Status == domain.InvoiceClosed {
+			dashboard.UpcomingInvoices = append(dashboard.UpcomingInvoices, invoice)
+		}
+	}
+	if len(dashboard.UpcomingInvoices) > 3 {
+		dashboard.UpcomingInvoices = dashboard.UpcomingInvoices[:3]
+	}
+	return Bootstrap{Profile: p, Setup: p != nil, Accounts: accounts, Categories: categories, Dashboard: dashboard, Theme: theme}, nil
 }
 
 func (s *Service) CompleteOnboarding(ctx context.Context, in OnboardingInput) (domain.Profile, error) {
@@ -159,11 +190,17 @@ func (s *Service) CompleteOnboarding(ctx context.Context, in OnboardingInput) (d
 	}
 	p := domain.Profile{DisplayName: strings.TrimSpace(in.DisplayName), Currency: "BRL", Theme: in.Theme, OnboardingStatus: "completed"}
 	a := accountFromInput(in.FirstAccount, newID(), s.now())
+	if err := validateAccountInput(a, in.FirstAccount, s.now()); err != nil {
+		return domain.Profile{}, err
+	}
 	err := s.store.WithTx(ctx, func(q storage.Queries) error {
 		if err := q.SaveProfile(ctx, p, a.CreatedAt); err != nil {
 			return err
 		}
-		return q.InsertAccount(ctx, a, a.CreatedAt)
+		if err := q.InsertAccount(ctx, a, a.CreatedAt); err != nil {
+			return err
+		}
+		return s.insertOpeningInvoice(ctx, q, a, in.FirstAccount, a.CreatedAt)
 	})
 	return p, err
 }
@@ -183,7 +220,16 @@ func (s *Service) CreateAccount(ctx context.Context, in AccountInput) (domain.Ac
 		return domain.Account{}, domain.ErrSavingsNegative
 	}
 	a := accountFromInput(in, newID(), s.now())
-	return a, s.store.InsertAccount(ctx, a, a.CreatedAt)
+	if err := validateAccountInput(a, in, s.now()); err != nil {
+		return domain.Account{}, err
+	}
+	err := s.store.WithTx(ctx, func(q storage.Queries) error {
+		if err := q.InsertAccount(ctx, a, a.CreatedAt); err != nil {
+			return err
+		}
+		return s.insertOpeningInvoice(ctx, q, a, in, a.CreatedAt)
+	})
+	return a, err
 }
 
 func (s *Service) UpdateAccount(ctx context.Context, id string, in AccountInput) (domain.Account, error) {
@@ -205,6 +251,15 @@ func (s *Service) UpdateAccount(ctx context.Context, id string, in AccountInput)
 		if err != nil {
 			return err
 		}
+		if current.Type != in.Type && (current.Type == domain.AccountCreditCard || in.Type == domain.AccountCreditCard) {
+			invoices, err := q.CreditCardInvoices(ctx, id)
+			if err != nil {
+				return err
+			}
+			if len(linked) > 0 || len(invoices) > 0 {
+				return domain.ErrAccountInUse
+			}
+		}
 		opening, _ := domain.ParseCivilDate(in.OpeningDate)
 		for _, tx := range linked {
 			if tx.AutomaticImport {
@@ -222,7 +277,16 @@ func (s *Service) UpdateAccount(ctx context.Context, id string, in AccountInput)
 		updated.Name = strings.TrimSpace(in.Name)
 		updated.Type = in.Type
 		updated.OpeningBalanceCents = in.OpeningBalanceCents
+		if current.Type == domain.AccountCreditCard && updated.Type == domain.AccountCreditCard {
+			updated.OpeningBalanceCents = current.OpeningBalanceCents
+		} else if updated.Type == domain.AccountCreditCard {
+			updated.OpeningBalanceCents = -in.OpeningDebtCents
+		}
 		updated.OpeningDate = in.OpeningDate
+		updated.CreditLimitCents, updated.ClosingDay, updated.DueDay = in.CreditLimitCents, in.ClosingDay, in.DueDay
+		if err := validateAccountInput(updated, in, now); err != nil {
+			return err
+		}
 		accounts, err := q.Accounts(ctx)
 		if err != nil {
 			return err
@@ -249,7 +313,13 @@ func (s *Service) UpdateAccount(ctx context.Context, id string, in AccountInput)
 			domain.ApplyTransactionWithAccounts(balances, accountsByID, tx)
 		}
 		updated.CurrentBalanceCents = balances[id]
-		return q.UpdateAccount(ctx, updated, at)
+		if err := q.UpdateAccount(ctx, updated, at); err != nil {
+			return err
+		}
+		if current.Type != domain.AccountCreditCard && updated.Type == domain.AccountCreditCard {
+			return s.insertOpeningInvoice(ctx, q, updated, in, at)
+		}
+		return nil
 	})
 	return updated, err
 }
@@ -270,6 +340,13 @@ func (s *Service) DeleteAccount(ctx context.Context, id string) error {
 		if len(linked) != 0 {
 			return domain.ErrAccountInUse
 		}
+		invoices, err := q.CreditCardInvoices(ctx, id)
+		if err != nil {
+			return err
+		}
+		if len(invoices) != 0 {
+			return domain.ErrAccountInUse
+		}
 		return q.DeleteAccount(ctx, id)
 	})
 }
@@ -277,7 +354,11 @@ func (s *Service) DeleteAccount(ctx context.Context, id string) error {
 func (s *Service) CreateTransaction(ctx context.Context, in TransactionInput) (domain.Transaction, error) {
 	now := s.now()
 	at := now.UTC().Format(time.RFC3339Nano)
-	tx := domain.Transaction{ID: newID(), Kind: in.Kind, AmountCents: in.AmountCents, AccountID: in.AccountID, DestinationAccountID: in.DestinationAccountID, CategoryID: in.CategoryID, Description: strings.TrimSpace(in.Description), OccurrenceDate: in.OccurrenceDate, CreatedAt: at, UpdatedAt: at}
+	count := in.InstallmentCount
+	if count == 0 {
+		count = 1
+	}
+	tx := domain.Transaction{ID: newID(), Kind: in.Kind, AmountCents: in.AmountCents, AccountID: in.AccountID, DestinationAccountID: in.DestinationAccountID, CategoryID: in.CategoryID, Description: strings.TrimSpace(in.Description), OccurrenceDate: in.OccurrenceDate, InstallmentCount: count, CreatedAt: at, UpdatedAt: at}
 	err := s.store.WithTx(ctx, func(q storage.Queries) error {
 		if err := s.prepareTransaction(ctx, q, &tx, now); err != nil {
 			return err
@@ -295,6 +376,12 @@ func (s *Service) CreateTransaction(ctx context.Context, in TransactionInput) (d
 		}
 		if err := q.InsertTransaction(ctx, tx, at); err != nil {
 			return err
+		}
+		account, _ := q.Account(ctx, tx.AccountID)
+		if account != nil && account.Type == domain.AccountCreditCard {
+			if err := s.insertPurchaseSchedule(ctx, q, *account, tx, at); err != nil {
+				return err
+			}
 		}
 		return q.InsertTransactionRevision(ctx, tx, "create", at)
 	})
@@ -337,6 +424,9 @@ func (s *Service) importStatementEntries(ctx context.Context, accountID string, 
 		}
 		if account == nil {
 			return domain.ErrUnknownAccount
+		}
+		if account.Type == domain.AccountCreditCard {
+			return domain.ErrCardTransaction
 		}
 		linked, err := q.AccountTransactions(ctx, accountID)
 		if err != nil {
@@ -417,9 +507,27 @@ func (s *Service) UpdateTransaction(ctx context.Context, id string, in Transacti
 		if current.DeletedAt != "" {
 			return domain.ErrTransactionTrashed
 		}
+		if current.InvoicePaymentID != "" {
+			return domain.ErrInvoiceLocked
+		}
+		count := in.InstallmentCount
+		if count == 0 {
+			count = 1
+		}
+		scheduleChanged := current.Kind != in.Kind || current.AmountCents != in.AmountCents || current.AccountID != in.AccountID ||
+			current.DestinationAccountID != in.DestinationAccountID || current.OccurrenceDate != in.OccurrenceDate || current.InstallmentCount != count
+		if scheduleChanged {
+			if err := s.ensureTransactionScheduleEditable(ctx, q, *current); err != nil {
+				return err
+			}
+		}
 		updated = *current
 		updated.Kind, updated.AmountCents, updated.AccountID = in.Kind, in.AmountCents, in.AccountID
 		updated.DestinationAccountID, updated.CategoryID = in.DestinationAccountID, in.CategoryID
+		updated.InstallmentCount = in.InstallmentCount
+		if updated.InstallmentCount == 0 {
+			updated.InstallmentCount = 1
+		}
 		updated.Description, updated.OccurrenceDate, updated.UpdatedAt = strings.TrimSpace(in.Description), in.OccurrenceDate, at
 		if err := s.prepareTransaction(ctx, q, &updated, now); err != nil {
 			return err
@@ -443,6 +551,19 @@ func (s *Service) UpdateTransaction(ctx context.Context, id string, in Transacti
 		if err := q.UpdateTransaction(ctx, updated, at); err != nil {
 			return err
 		}
+		if scheduleChanged {
+			if err := q.DeleteTransactionInstallments(ctx, id); err != nil {
+				return err
+			}
+			account, _ := q.Account(ctx, updated.AccountID)
+			if account != nil && account.Type == domain.AccountCreditCard {
+				if err := s.insertPurchaseSchedule(ctx, q, *account, updated, at); err != nil {
+					return err
+				}
+			}
+		} else if err := q.UpdateTransactionInstallmentDescriptions(ctx, id, updated.Description); err != nil {
+			return err
+		}
 		return q.InsertTransactionRevision(ctx, updated, "update", at)
 	})
 	return updated, err
@@ -461,6 +582,12 @@ func (s *Service) TrashTransaction(ctx context.Context, id string) error {
 		}
 		if current.DeletedAt != "" {
 			return domain.ErrTransactionTrashed
+		}
+		if current.InvoicePaymentID != "" {
+			return domain.ErrInvoiceLocked
+		}
+		if err := s.ensureTransactionScheduleEditable(ctx, q, *current); err != nil {
+			return err
 		}
 		active, err := q.Transactions(ctx)
 		if err != nil {
@@ -511,6 +638,12 @@ func (s *Service) RestoreTransaction(ctx context.Context, id string) error {
 		}
 		if current.DeletedAt == "" {
 			return domain.ErrTransactionActive
+		}
+		if current.InvoicePaymentID != "" {
+			return domain.ErrInvoiceLocked
+		}
+		if err := s.ensureTransactionScheduleEditable(ctx, q, *current); err != nil {
+			return err
 		}
 		active, err := q.Transactions(ctx)
 		if err != nil {
@@ -590,6 +723,270 @@ func (s *Service) prepareTransaction(ctx context.Context, q storage.Queries, tx 
 
 func (s *Service) ListTransactions(ctx context.Context) ([]domain.Transaction, error) {
 	return s.store.Transactions(ctx)
+}
+
+func (s *Service) CreditCardsOverview(ctx context.Context) (CreditCardsOverview, error) {
+	return s.creditCardsOverview(ctx)
+}
+
+func (s *Service) creditCardsOverview(ctx context.Context) (CreditCardsOverview, error) {
+	result := CreditCardsOverview{Cards: []domain.CreditCardSummary{}, Invoices: []domain.CreditCardInvoice{}}
+	err := s.store.WithTx(ctx, func(q storage.Queries) error {
+		accounts, err := q.Accounts(ctx)
+		if err != nil {
+			return err
+		}
+		transactions, err := q.Transactions(ctx)
+		if err != nil {
+			return err
+		}
+		balances := map[string]int64{}
+		for _, account := range accounts {
+			balances[account.ID] = account.OpeningBalanceCents
+		}
+		for _, transaction := range transactions {
+			domain.ApplyTransaction(balances, transaction)
+		}
+		for _, account := range accounts {
+			if account.Type != domain.AccountCreditCard {
+				continue
+			}
+			invoices, err := s.reconcileCardInvoices(ctx, q, account)
+			if err != nil {
+				return err
+			}
+			result.Invoices = append(result.Invoices, invoices...)
+			outstanding := int64(0)
+			if balances[account.ID] < 0 {
+				outstanding = -balances[account.ID]
+			}
+			summary := domain.CreditCardSummary{Account: account, OutstandingCents: outstanding,
+				AvailableLimitCents: account.CreditLimitCents - outstanding}
+			for index := range invoices {
+				if invoices[index].Status == domain.InvoiceOpen || invoices[index].Status == domain.InvoiceClosed {
+					summary.CurrentInvoice = &invoices[index]
+					break
+				}
+			}
+			result.Cards = append(result.Cards, summary)
+		}
+		return nil
+	})
+	sort.SliceStable(result.Invoices, func(i, j int) bool { return result.Invoices[i].DueDate < result.Invoices[j].DueDate })
+	return result, err
+}
+
+func (s *Service) reconcileCardInvoices(ctx context.Context, q storage.Queries, account domain.Account) ([]domain.CreditCardInvoice, error) {
+	invoices, err := q.CreditCardInvoices(ctx, account.ID)
+	if err != nil {
+		return nil, err
+	}
+	nowDate, _ := domain.ParseCivilDate(s.now().In(time.Local).Format("2006-01-02"))
+	at := s.now().UTC().Format(time.RFC3339Nano)
+	for index := 0; index < len(invoices); index++ {
+		invoice, err := hydrateInvoice(ctx, q, invoices[index])
+		if err != nil {
+			return nil, err
+		}
+		if invoice.Status == domain.InvoiceRolledOver {
+			continue
+		}
+		closing, _ := domain.ParseCivilDate(invoice.ClosingDate)
+		due, _ := domain.ParseCivilDate(invoice.DueDate)
+		status := domain.InvoiceOpen
+		if !nowDate.Before(closing) {
+			status = domain.InvoiceClosed
+		}
+		if invoice.OutstandingCents == 0 && invoice.ChargesCents > 0 {
+			status = domain.InvoicePaid
+		}
+		if nowDate.After(due) && invoice.OutstandingCents > 0 {
+			nextClosing, nextDue := domain.CreditCardCycle(due, account.ClosingDay, account.DueDay)
+			next, err := ensureCreditCardInvoice(ctx, q, account, nextClosing, nextDue, at)
+			if err != nil {
+				return nil, err
+			}
+			if err := q.UpdateCreditCardInvoice(ctx, next.Status, next.CarryForwardCents+invoice.OutstandingCents, next.ID, at); err != nil {
+				return nil, err
+			}
+			if err := q.UpdateCreditCardInvoice(ctx, domain.InvoiceRolledOver, invoice.CarryForwardCents, invoice.ID, at); err != nil {
+				return nil, err
+			}
+			invoices, err = q.CreditCardInvoices(ctx, account.ID)
+			if err != nil {
+				return nil, err
+			}
+			index = -1
+			continue
+		}
+		if status != invoice.Status {
+			if err := q.UpdateCreditCardInvoice(ctx, status, invoice.CarryForwardCents, invoice.ID, at); err != nil {
+				return nil, err
+			}
+		}
+	}
+	invoices, err = q.CreditCardInvoices(ctx, account.ID)
+	if err != nil {
+		return nil, err
+	}
+	for index := range invoices {
+		invoices[index], err = hydrateInvoice(ctx, q, invoices[index])
+		if err != nil {
+			return nil, err
+		}
+		if invoices[index].Status == domain.InvoiceRolledOver {
+			invoices[index].OutstandingCents = 0
+		}
+	}
+	return invoices, nil
+}
+
+func hydrateInvoice(ctx context.Context, q storage.Queries, invoice domain.CreditCardInvoice) (domain.CreditCardInvoice, error) {
+	items, err := q.InvoiceInstallments(ctx, invoice.ID)
+	if err != nil {
+		return invoice, err
+	}
+	payments, err := q.InvoicePayments(ctx, invoice.ID)
+	if err != nil {
+		return invoice, err
+	}
+	invoice.Installments, invoice.Payments = items, payments
+	invoice.ChargesCents = invoice.CarryForwardCents
+	for _, item := range items {
+		invoice.ChargesCents += item.AmountCents
+	}
+	for _, payment := range payments {
+		invoice.PaidCents += payment.AmountCents
+	}
+	invoice.OutstandingCents = invoice.ChargesCents - invoice.PaidCents
+	if invoice.OutstandingCents < 0 {
+		invoice.OutstandingCents = 0
+	}
+	return invoice, nil
+}
+
+func (s *Service) PayCreditCardInvoice(ctx context.Context, invoiceID string, in CreditCardPaymentInput) (domain.CreditCardPayment, error) {
+	if in.AmountCents <= 0 {
+		return domain.CreditCardPayment{}, domain.ErrInvalidAmount
+	}
+	date, err := domain.ParseCivilDate(in.OccurrenceDate)
+	if err != nil {
+		return domain.CreditCardPayment{}, err
+	}
+	today, _ := domain.ParseCivilDate(s.now().In(time.Local).Format("2006-01-02"))
+	if date.After(today) {
+		return domain.CreditCardPayment{}, domain.ErrFutureDate
+	}
+	at := s.now().UTC().Format(time.RFC3339Nano)
+	payment := domain.CreditCardPayment{ID: newID(), InvoiceID: invoiceID, AccountID: in.AccountID,
+		AmountCents: in.AmountCents, OccurrenceDate: in.OccurrenceDate, CreatedAt: at}
+	err = s.store.WithTx(ctx, func(q storage.Queries) error {
+		invoice, err := q.CreditCardInvoice(ctx, invoiceID)
+		if err != nil {
+			return err
+		}
+		if invoice == nil {
+			return domain.ErrUnknownInvoice
+		}
+		card, err := q.Account(ctx, invoice.AccountID)
+		if err != nil {
+			return err
+		}
+		if card == nil || card.Type != domain.AccountCreditCard {
+			return domain.ErrUnknownAccount
+		}
+		invoices, err := s.reconcileCardInvoices(ctx, q, *card)
+		if err != nil {
+			return err
+		}
+		var payable *domain.CreditCardInvoice
+		for index := range invoices {
+			if invoices[index].ID == invoiceID {
+				payable = &invoices[index]
+				break
+			}
+		}
+		if payable == nil {
+			return domain.ErrUnknownInvoice
+		}
+		if payable.Status == domain.InvoicePaid || payable.Status == domain.InvoiceRolledOver || payable.OutstandingCents <= 0 {
+			return domain.ErrInvoiceNotPayable
+		}
+		if in.AmountCents > payable.OutstandingCents {
+			return domain.ErrInvoiceOverpayment
+		}
+		source, err := q.Account(ctx, in.AccountID)
+		if err != nil {
+			return err
+		}
+		if source == nil || source.Type == domain.AccountCreditCard {
+			return domain.ErrInvalidPaymentAccount
+		}
+		payment.AccountName = source.Name
+		payment.TransactionID = newID()
+		tx := domain.Transaction{ID: payment.TransactionID, Kind: domain.Transfer, AmountCents: in.AmountCents,
+			AccountID: source.ID, DestinationAccountID: card.ID, Description: "Pagamento da fatura " + card.Name,
+			OccurrenceDate: in.OccurrenceDate, InstallmentCount: 1, InvoicePaymentID: payment.ID, CreatedAt: at, UpdatedAt: at}
+		if err := s.prepareTransaction(ctx, q, &tx, s.now()); err != nil {
+			return err
+		}
+		active, err := q.Transactions(ctx)
+		if err != nil {
+			return err
+		}
+		accounts, err := q.Accounts(ctx)
+		if err != nil {
+			return err
+		}
+		if err := domain.ValidateSavingsBalances(accounts, append(active, tx)); err != nil {
+			return err
+		}
+		if err := q.InsertTransaction(ctx, tx, at); err != nil {
+			return err
+		}
+		if err := q.InsertTransactionRevision(ctx, tx, "create", at); err != nil {
+			return err
+		}
+		if err := q.InsertCreditCardPayment(ctx, payment); err != nil {
+			return err
+		}
+		remaining := payable.OutstandingCents - in.AmountCents
+		status := payable.Status
+		if remaining == 0 {
+			status = domain.InvoicePaid
+		}
+		return q.UpdateCreditCardInvoice(ctx, status, payable.CarryForwardCents, payable.ID, at)
+	})
+	return payment, err
+}
+
+func (s *Service) ensureTransactionScheduleEditable(ctx context.Context, q storage.Queries, tx domain.Transaction) error {
+	items, err := q.TransactionInstallments(ctx, tx.ID)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		invoice, err := q.CreditCardInvoice(ctx, item.InvoiceID)
+		if err != nil {
+			return err
+		}
+		closing := time.Time{}
+		if invoice != nil {
+			closing, _ = domain.ParseCivilDate(invoice.ClosingDate)
+		}
+		today, _ := domain.ParseCivilDate(s.now().In(time.Local).Format("2006-01-02"))
+		if invoice == nil || invoice.Status != domain.InvoiceOpen || !today.Before(closing) {
+			return domain.ErrInvoiceLocked
+		}
+		payments, err := q.InvoicePayments(ctx, invoice.ID)
+		if err != nil {
+			return err
+		}
+		if len(payments) > 0 {
+			return domain.ErrInvoiceLocked
+		}
+	}
+	return nil
 }
 
 func (s *Service) SetTheme(ctx context.Context, theme domain.Theme) (domain.Profile, error) {
@@ -761,6 +1158,13 @@ func (s *Service) ConfirmFixedExpenseOccurrence(ctx context.Context, id string, 
 		if err := q.InsertTransaction(ctx, tx, at); err != nil {
 			return err
 		}
+		account, _ := q.Account(ctx, tx.AccountID)
+		if account != nil && account.Type == domain.AccountCreditCard {
+			tx.InstallmentCount = 1
+			if err := s.insertPurchaseSchedule(ctx, q, *account, tx, at); err != nil {
+				return err
+			}
+		}
 		if err := q.SetFixedExpenseOccurrence(ctx, occurrence.ID, domain.FixedExpenseConfirmed, tx.ID, at); err != nil {
 			return err
 		}
@@ -875,7 +1279,126 @@ func dueDate(month time.Time, day int) string {
 }
 
 func accountFromInput(in AccountInput, id string, now time.Time) domain.Account {
-	return domain.Account{ID: id, Name: strings.TrimSpace(in.Name), Type: in.Type, OpeningBalanceCents: in.OpeningBalanceCents, OpeningDate: in.OpeningDate, CreatedAt: now.UTC().Format(time.RFC3339Nano)}
+	opening := in.OpeningBalanceCents
+	if in.Type == domain.AccountCreditCard {
+		opening = -in.OpeningDebtCents
+	}
+	return domain.Account{ID: id, Name: strings.TrimSpace(in.Name), Type: in.Type, OpeningBalanceCents: opening, OpeningDate: in.OpeningDate,
+		CreditLimitCents: in.CreditLimitCents, ClosingDay: in.ClosingDay, DueDay: in.DueDay, CreatedAt: now.UTC().Format(time.RFC3339Nano)}
+}
+
+func validateAccountInput(account domain.Account, in AccountInput, now time.Time) error {
+	if err := domain.ValidateCreditCard(account); err != nil {
+		return err
+	}
+	if account.Type != domain.AccountCreditCard {
+		return nil
+	}
+	if in.OpeningDebtCents < 0 {
+		return domain.ErrInvalidAmount
+	}
+	if in.OpeningDebtCents == 0 {
+		return nil
+	}
+	due, err := domain.ParseCivilDate(in.OpeningDebtDueDate)
+	if err != nil {
+		return err
+	}
+	opened, _ := domain.ParseCivilDate(account.OpeningDate)
+	if due.Before(opened) {
+		return domain.ErrBeforeOpening
+	}
+	_ = now
+	return nil
+}
+
+func (s *Service) insertOpeningInvoice(ctx context.Context, q storage.Queries, account domain.Account, in AccountInput, at string) error {
+	if account.Type != domain.AccountCreditCard || in.OpeningDebtCents == 0 {
+		return nil
+	}
+	due, _ := domain.ParseCivilDate(in.OpeningDebtDueDate)
+	closing := closingDateForDue(due, account.ClosingDay, account.DueDay)
+	invoice, err := ensureCreditCardInvoice(ctx, q, account, closing, due, at)
+	if err != nil {
+		return err
+	}
+	return q.InsertCreditCardInstallment(ctx, domain.CreditCardInstallment{ID: newID(), InvoiceID: invoice.ID,
+		Description: "Saldo anterior", AmountCents: in.OpeningDebtCents, InstallmentNumber: 1, InstallmentCount: 1, OpeningDebt: true}, at)
+}
+
+func closingDateForDue(due time.Time, closingDay, dueDay int) time.Time {
+	month := due.Month()
+	year := due.Year()
+	if dueDay <= closingDay {
+		month--
+	}
+	base := time.Date(year, month, 1, 0, 0, 0, 0, due.Location())
+	last := time.Date(base.Year(), base.Month()+1, 0, 0, 0, 0, 0, base.Location()).Day()
+	if closingDay > last {
+		closingDay = last
+	}
+	return time.Date(base.Year(), base.Month(), closingDay, 0, 0, 0, 0, base.Location())
+}
+
+func (s *Service) insertPurchaseSchedule(ctx context.Context, q storage.Queries, account domain.Account, tx domain.Transaction, at string) error {
+	amounts, err := domain.InstallmentAmounts(tx.AmountCents, tx.InstallmentCount)
+	if err != nil {
+		return err
+	}
+	purchase, _ := domain.ParseCivilDate(tx.OccurrenceDate)
+	closing, due := domain.CreditCardCycle(purchase, account.ClosingDay, account.DueDay)
+	for index, amount := range amounts {
+		if index > 0 {
+			closing = cardCivilMonth(closing, 1, account.ClosingDay)
+			due = invoiceDueDate(closing, account.ClosingDay, account.DueDay)
+		}
+		invoice, err := ensureCreditCardInvoice(ctx, q, account, closing, due, at)
+		if err != nil {
+			return err
+		}
+		item := domain.CreditCardInstallment{ID: newID(), InvoiceID: invoice.ID, TransactionID: tx.ID,
+			Description: tx.Description, AmountCents: amount, InstallmentNumber: index + 1, InstallmentCount: len(amounts)}
+		if err := q.InsertCreditCardInstallment(ctx, item, at); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureCreditCardInvoice(ctx context.Context, q storage.Queries, account domain.Account, closing, due time.Time, at string) (domain.CreditCardInvoice, error) {
+	invoices, err := q.CreditCardInvoices(ctx, account.ID)
+	if err != nil {
+		return domain.CreditCardInvoice{}, err
+	}
+	closingText := closing.Format("2006-01-02")
+	for _, invoice := range invoices {
+		if invoice.ClosingDate == closingText {
+			return invoice, nil
+		}
+	}
+	invoice := domain.CreditCardInvoice{ID: newID(), AccountID: account.ID, AccountName: account.Name,
+		ReferenceMonth: due.Format("2006-01"), ClosingDate: closingText, DueDate: due.Format("2006-01-02"), Status: domain.InvoiceOpen}
+	return invoice, q.InsertCreditCardInvoice(ctx, invoice, at)
+}
+
+func cardCivilMonth(value time.Time, months int, day int) time.Time {
+	base := time.Date(value.Year(), value.Month()+time.Month(months), 1, 0, 0, 0, 0, value.Location())
+	closing, _ := domain.CreditCardCycle(base.AddDate(0, 0, -1), day, 1)
+	return closing
+}
+
+func invoiceDueDate(closing time.Time, closingDay, dueDay int) time.Time {
+	month := closing.Month()
+	year := closing.Year()
+	if dueDay <= closingDay {
+		month++
+	}
+	base := time.Date(year, month, 1, 0, 0, 0, 0, closing.Location())
+	last := time.Date(base.Year(), base.Month()+1, 0, 0, 0, 0, 0, base.Location()).Day()
+	if dueDay > last {
+		dueDay = last
+	}
+	return time.Date(base.Year(), base.Month(), dueDay, 0, 0, 0, 0, base.Location())
 }
 
 func newID() string {

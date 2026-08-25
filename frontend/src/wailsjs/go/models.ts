@@ -5,6 +5,11 @@ export namespace application {
 	    type: string;
 	    openingBalanceCents: number;
 	    openingDate: string;
+	    creditLimitCents: number;
+	    closingDay: number;
+	    dueDay: number;
+	    openingDebtCents: number;
+	    openingDebtDueDate: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AccountInput(source);
@@ -16,6 +21,11 @@ export namespace application {
 	        this.type = source["type"];
 	        this.openingBalanceCents = source["openingBalanceCents"];
 	        this.openingDate = source["openingDate"];
+	        this.creditLimitCents = source["creditLimitCents"];
+	        this.closingDay = source["closingDay"];
+	        this.dueDay = source["dueDay"];
+	        this.openingDebtCents = source["openingDebtCents"];
+	        this.openingDebtDueDate = source["openingDebtDueDate"];
 	    }
 	}
 	export class BankStatementImportResult {
@@ -106,6 +116,26 @@ export namespace application {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.amountCents = source["amountCents"];
 	        this.occurrenceDate = source["occurrenceDate"];
+	    }
+	}
+	export class CreditCardPaymentInput {
+	    accountId: string;
+	    amountCents: number;
+	    occurrenceDate: string;
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.accountId = source["accountId"];
+	        this.amountCents = source["amountCents"];
+	        this.occurrenceDate = source["occurrenceDate"];
+	    }
+	}
+	export class CreditCardsOverview {
+	    cards: domain.CreditCardSummary[];
+	    invoices: domain.CreditCardInvoice[];
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cards = (source["cards"] || []).map((item:any)=>new domain.CreditCardSummary(item));
+	        this.invoices = (source["invoices"] || []).map((item:any)=>new domain.CreditCardInvoice(item));
 	    }
 	}
 	export class FixedExpenseInput {
@@ -204,6 +234,7 @@ export namespace application {
 	    categoryId: string;
 	    description: string;
 	    occurrenceDate: string;
+	    installmentCount: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new TransactionInput(source);
@@ -218,12 +249,18 @@ export namespace application {
 	        this.categoryId = source["categoryId"];
 	        this.description = source["description"];
 	        this.occurrenceDate = source["occurrenceDate"];
+	        this.installmentCount = source["installmentCount"];
 	    }
 	}
 
 }
 
 export namespace domain {
+	export class CreditCardPayment {
+	    id!: string; invoiceId!: string; accountId!: string; accountName!: string; transactionId!: string;
+	    amountCents!: number; occurrenceDate!: string; createdAt!: string;
+	    constructor(source: any = {}) { Object.assign(this, typeof source === 'string' ? JSON.parse(source) : source); }
+	}
 	
 	export class Account {
 	    id: string;
@@ -233,6 +270,9 @@ export namespace domain {
 	    openingDate: string;
 	    createdAt: string;
 	    currentBalanceCents: number;
+	    creditLimitCents: number;
+	    closingDay: number;
+	    dueDay: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Account(source);
@@ -247,6 +287,9 @@ export namespace domain {
 	        this.openingDate = source["openingDate"];
 	        this.createdAt = source["createdAt"];
 	        this.currentBalanceCents = source["currentBalanceCents"];
+	        this.creditLimitCents = source["creditLimitCents"];
+	        this.closingDay = source["closingDay"];
+	        this.dueDay = source["dueDay"];
 	    }
 	}
 	export class AccountAllocation {
@@ -315,6 +358,8 @@ export namespace domain {
 	    fixedExpenseOccurrenceId?: string;
 	    automaticImport: boolean;
 	    importBank?: string;
+	    installmentCount: number;
+	    invoicePaymentId?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Transaction(source);
@@ -339,7 +384,24 @@ export namespace domain {
 	        this.fixedExpenseOccurrenceId = source["fixedExpenseOccurrenceId"];
 	        this.automaticImport = source["automaticImport"];
 	        this.importBank = source["importBank"];
+	        this.installmentCount = source["installmentCount"];
+	        this.invoicePaymentId = source["invoicePaymentId"];
 	    }
+	}
+	export class CreditCardInstallment {
+	    id!: string; invoiceId!: string; transactionId?: string; description!: string; amountCents!: number;
+	    installmentNumber!: number; installmentCount!: number; openingDebt!: boolean;
+	    constructor(source:any={}) { Object.assign(this, typeof source==='string'?JSON.parse(source):source); }
+	}
+	export class CreditCardInvoice {
+	    id!: string; accountId!: string; accountName!: string; referenceMonth!: string; closingDate!: string; dueDate!: string;
+	    status!: string; chargesCents!: number; carryForwardCents!: number; paidCents!: number; outstandingCents!: number;
+	    installments!: CreditCardInstallment[]; payments!: CreditCardPayment[];
+	    constructor(source:any={}) { if(typeof source==='string')source=JSON.parse(source);Object.assign(this,source);this.installments=(source.installments||[]).map((item:any)=>new CreditCardInstallment(item));this.payments=(source.payments||[]).map((item:any)=>new CreditCardPayment(item)); }
+	}
+	export class CreditCardSummary {
+	    account!: Account; outstandingCents!: number; availableLimitCents!: number; currentInvoice?: CreditCardInvoice;
+	    constructor(source:any={}) { if(typeof source==='string')source=JSON.parse(source);this.account=new Account(source.account);this.outstandingCents=source.outstandingCents;this.availableLimitCents=source.availableLimitCents;this.currentInvoice=source.currentInvoice?new CreditCardInvoice(source.currentInvoice):undefined; }
 	}
 	export class Dashboard {
 	    availableBalanceCents: number;
@@ -352,6 +414,8 @@ export namespace domain {
 	    balanceHistory: BalanceHistoryPoint[];
 	    accountAllocations: AccountAllocation[];
 	    hasNegativeBalance: boolean;
+	    creditCardDebtCents: number;
+	    upcomingInvoices: CreditCardInvoice[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Dashboard(source);
@@ -369,6 +433,8 @@ export namespace domain {
 	        this.balanceHistory = this.convertValues(source["balanceHistory"], BalanceHistoryPoint);
 	        this.accountAllocations = this.convertValues(source["accountAllocations"], AccountAllocation);
 	        this.hasNegativeBalance = source["hasNegativeBalance"];
+	        this.creditCardDebtCents = source["creditCardDebtCents"];
+	        this.upcomingInvoices = this.convertValues(source["upcomingInvoices"], CreditCardInvoice);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -481,4 +547,3 @@ export namespace domain {
 	}
 
 }
-

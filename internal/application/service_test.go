@@ -415,3 +415,95 @@ func TestDueDate_ClampsAtEndOfMonth(t *testing.T) {
 		t.Fatalf("date=%s", got)
 	}
 }
+
+func TestCreditCardWorkflow_OpeningInvoiceInstallmentsAndPartialPayment(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	bank, err := service.CreateAccount(ctx, AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 10000, OpeningDate: "2026-08-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	card, err := service.CreateAccount(ctx, AccountInput{Name: "Inter Gold", Type: domain.AccountCreditCard, OpeningDate: "2026-08-01",
+		CreditLimitCents: 20000, ClosingDay: 25, DueDay: 2, OpeningDebtCents: 1500, OpeningDebtDueDate: "2026-09-02"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	purchase, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 10001, AccountID: card.ID,
+		CategoryID: "shopping", Description: "Notebook", OccurrenceDate: "2026-08-10", InstallmentCount: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	overview, err := service.CreditCardsOverview(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(overview.Cards) != 1 || len(overview.Invoices) != 3 || overview.Cards[0].OutstandingCents != 11501 {
+		t.Fatalf("overview=%+v", overview)
+	}
+	var firstPurchaseInvoice, openingInvoice *domain.CreditCardInvoice
+	for index := range overview.Invoices {
+		for _, item := range overview.Invoices[index].Installments {
+			if item.TransactionID == purchase.ID && item.InstallmentNumber == 1 {
+				firstPurchaseInvoice = &overview.Invoices[index]
+			}
+			if item.OpeningDebt {
+				openingInvoice = &overview.Invoices[index]
+			}
+		}
+	}
+	var firstAmount int64
+	if firstPurchaseInvoice != nil {
+		for _, item := range firstPurchaseInvoice.Installments {
+			if item.TransactionID == purchase.ID && item.InstallmentNumber == 1 {
+				firstAmount = item.AmountCents
+			}
+		}
+	}
+	if firstPurchaseInvoice == nil || firstAmount != 3335 || openingInvoice == nil || openingInvoice.ID != firstPurchaseInvoice.ID {
+		t.Fatalf("purchase invoice=%+v opening=%+v", firstPurchaseInvoice, openingInvoice)
+	}
+	if _, err := service.PayCreditCardInvoice(ctx, openingInvoice.ID, CreditCardPaymentInput{AccountID: bank.ID, AmountCents: 4836, OccurrenceDate: "2026-08-16"}); !errors.Is(err, domain.ErrInvoiceOverpayment) {
+		t.Fatalf("overpayment error=%v", err)
+	}
+	payment, err := service.PayCreditCardInvoice(ctx, openingInvoice.ID, CreditCardPaymentInput{AccountID: bank.ID, AmountCents: 500, OccurrenceDate: "2026-08-16"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payment.AmountCents != 500 || payment.TransactionID == "" {
+		t.Fatalf("payment=%+v", payment)
+	}
+	if _, err := service.UpdateTransaction(ctx, payment.TransactionID, TransactionInput{}); !errors.Is(err, domain.ErrInvoiceLocked) {
+		t.Fatalf("payment edit error=%v", err)
+	}
+	boot, err := service.Bootstrap(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if boot.Dashboard.AvailableBalanceCents != 9500 || boot.Dashboard.TotalBalanceCents != -1501 || boot.Dashboard.CreditCardDebtCents != 11001 || boot.Dashboard.MonthlyExpenseCents != 10001 {
+		t.Fatalf("dashboard=%+v", boot.Dashboard)
+	}
+	closedService := New(service.store, func() time.Time { return time.Date(2026, 8, 25, 12, 0, 0, 0, time.Local) })
+	if _, err := closedService.CreditCardsOverview(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := closedService.UpdateTransaction(ctx, purchase.ID, TransactionInput{Kind: domain.Expense, AmountCents: 10001, AccountID: card.ID, CategoryID: "shopping", Description: "Notebook Pro", OccurrenceDate: "2026-08-10", InstallmentCount: 3}); err != nil {
+		t.Fatalf("metadata edit on closed schedule: %v", err)
+	}
+	if _, err := closedService.UpdateTransaction(ctx, purchase.ID, TransactionInput{Kind: domain.Expense, AmountCents: 9000, AccountID: card.ID, Description: "Notebook", OccurrenceDate: "2026-08-10", InstallmentCount: 3}); !errors.Is(err, domain.ErrInvoiceLocked) {
+		t.Fatalf("closed schedule edit error=%v", err)
+	}
+	rolledService := New(service.store, func() time.Time { return time.Date(2026, 9, 3, 12, 0, 0, 0, time.Local) })
+	rolled, err := rolledService.CreditCardsOverview(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var carry int64
+	for _, invoice := range rolled.Invoices {
+		if invoice.ClosingDate == "2026-09-25" {
+			carry = invoice.CarryForwardCents
+		}
+	}
+	if carry != 4335 {
+		t.Fatalf("carry forward=%d invoices=%+v", carry, rolled.Invoices)
+	}
+}

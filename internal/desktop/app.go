@@ -107,6 +107,14 @@ func (a *App) ListTransactions() ([]domain.Transaction, error) {
 	v, err := a.service.ListTransactions(a.context())
 	return v, safe(err)
 }
+func (a *App) CreditCardsOverview() (application.CreditCardsOverview, error) {
+	v, err := a.service.CreditCardsOverview(a.context())
+	return v, safe(err)
+}
+func (a *App) PayCreditCardInvoice(id string, in application.CreditCardPaymentInput) (domain.CreditCardPayment, error) {
+	v, err := a.service.PayCreditCardInvoice(a.context(), id, in)
+	return v, safe(err)
+}
 func (a *App) ImportBankStatement(in application.BankStatementInput) (application.BankStatementImportResult, error) {
 	v, err := a.service.ImportBankStatement(a.context(), in)
 	return v, safe(err)
@@ -182,6 +190,14 @@ func safe(err error) error {
 		{domain.ErrUnsupportedBank, "Escolha Itaú, Bradesco ou Inter."},
 		{domain.ErrStatementEmpty, "Não encontramos movimentações nesse extrato. PDFs escaneados ainda não são compatíveis."},
 		{domain.ErrStatementTooLarge, "O PDF deve ter no máximo 15 MB."},
+		{domain.ErrInvalidCreditLimit, "Informe um limite de crédito maior que zero."},
+		{domain.ErrInvalidInstallments, "Escolha entre 1 e 48 parcelas."},
+		{domain.ErrCardTransaction, "Cartões aceitam somente despesas; pague faturas pela área de cartões."},
+		{domain.ErrInvoiceLocked, "Esta compra pertence a uma fatura consolidada e não pode mais ser alterada."},
+		{domain.ErrUnknownInvoice, "Esta fatura não existe mais."},
+		{domain.ErrInvoiceNotPayable, "Esta fatura já foi paga ou transferida para a seguinte."},
+		{domain.ErrInvalidPaymentAccount, "Escolha uma conta corrente, poupança ou dinheiro para pagar a fatura."},
+		{domain.ErrInvoiceOverpayment, "O pagamento não pode superar o valor em aberto da fatura."},
 	}
 	for _, item := range messages {
 		if errors.Is(err, item.target) {

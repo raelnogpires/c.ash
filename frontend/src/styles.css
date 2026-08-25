@@ -2902,6 +2902,19 @@ form:has(.field__error:not(:empty)) > .form-error {
   .statement-import form { grid-template-columns: 1fr; }
 }
 
+.invoice-dashboard { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--space-xs); }
+.invoice-dashboard > strong, .credit-summary p strong { color: var(--text); font-size: var(--text-xl); }
+.invoice-dashboard > small { grid-column: 1 / -1; color: var(--text-muted); }
+.card-summary-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(16rem,1fr)); gap: var(--space-sm); }
+.credit-summary { display: grid; gap: var(--space-2xs); }
+.credit-summary > span, .credit-summary small { color: var(--text-muted); }
+.credit-summary.negative { border-color: var(--negative); }
+.invoice-list > ul { display: grid; gap: var(--space-2xs); list-style: none; margin: 0; padding: 0; }
+.invoice-list > ul > li { display: flex; justify-content: space-between; gap: var(--space-sm); padding: var(--space-sm) 0; border-top: 1px solid var(--border); }
+.invoice-list li > div { display: grid; gap: var(--space-3xs); }
+.invoice-list li > div:last-child { justify-items: end; align-content: start; }
+.invoice-list li span:has(> small) { display: grid; margin-top: var(--space-2xs); color: var(--text-muted); }
+
 @keyframes button-spin {
   to { transform: rotate(1turn); }
 }

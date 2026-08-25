@@ -53,7 +53,7 @@ func TestCalculateDashboard_EmptyRecentTransactionsEncodeAsArray(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(encoded) != `{"availableBalanceCents":0,"totalBalanceCents":0,"pendingFixedExpensesCents":0,"pendingFixedExpenseCount":0,"monthlyIncomeCents":0,"monthlyExpenseCents":0,"recentTransactions":[],"balanceHistory":[{"month":"2026-02","label":"Feb","balanceCents":0},{"month":"2026-03","label":"Mar","balanceCents":0},{"month":"2026-04","label":"Apr","balanceCents":0},{"month":"2026-05","label":"May","balanceCents":0},{"month":"2026-06","label":"Jun","balanceCents":0},{"month":"2026-07","label":"Jul","balanceCents":0},{"month":"2026-08","label":"Aug","balanceCents":0}],"accountAllocations":[],"hasNegativeBalance":false}` {
+	if string(encoded) != `{"availableBalanceCents":0,"totalBalanceCents":0,"pendingFixedExpensesCents":0,"pendingFixedExpenseCount":0,"monthlyIncomeCents":0,"monthlyExpenseCents":0,"recentTransactions":[],"balanceHistory":[{"month":"2026-02","label":"Feb","balanceCents":0},{"month":"2026-03","label":"Mar","balanceCents":0},{"month":"2026-04","label":"Apr","balanceCents":0},{"month":"2026-05","label":"May","balanceCents":0},{"month":"2026-06","label":"Jun","balanceCents":0},{"month":"2026-07","label":"Jul","balanceCents":0},{"month":"2026-08","label":"Aug","balanceCents":0}],"accountAllocations":[],"hasNegativeBalance":false,"creditCardDebtCents":0,"upcomingInvoices":[]}` {
 		t.Fatalf("dashboard JSON = %s", encoded)
 	}
 }
@@ -119,6 +119,49 @@ func TestValidateAccount_AllRules(t *testing.T) {
 				t.Fatalf("error=%v want %v", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestCreditCardCycleAndInstallmentRounding(t *testing.T) {
+	purchase, _ := ParseCivilDate("2026-08-25")
+	closing, due := CreditCardCycle(purchase, 25, 2)
+	if closing.Format("2006-01-02") != "2026-09-25" || due.Format("2006-01-02") != "2026-10-02" {
+		t.Fatalf("cycle=%s/%s", closing.Format("2006-01-02"), due.Format("2006-01-02"))
+	}
+	purchase, _ = ParseCivilDate("2027-02-01")
+	closing, due = CreditCardCycle(purchase, 31, 31)
+	if closing.Format("2006-01-02") != "2027-02-28" || due.Format("2006-01-02") != "2027-03-31" {
+		t.Fatalf("clamped cycle=%s/%s", closing.Format("2006-01-02"), due.Format("2006-01-02"))
+	}
+	items, err := InstallmentAmounts(100, 3)
+	if err != nil || len(items) != 3 || items[0] != 34 || items[1] != 33 || items[2] != 33 {
+		t.Fatalf("installments=%v err=%v", items, err)
+	}
+}
+
+func TestCreditCardValidationAndDashboardSemantics(t *testing.T) {
+	card := Account{ID: "card", Name: "Cartão", Type: AccountCreditCard, OpeningBalanceCents: -2000, OpeningDate: "2026-08-01", CreditLimitCents: 10000, ClosingDay: 25, DueDay: 2, CurrentBalanceCents: -5000}
+	if err := ValidateCreditCard(card); err != nil {
+		t.Fatal(err)
+	}
+	bad := card
+	bad.CreditLimitCents = 0
+	if !errors.Is(ValidateCreditCard(bad), ErrInvalidCreditLimit) {
+		t.Fatal("invalid limit accepted")
+	}
+	cash := Account{ID: "cash", Name: "Conta", Type: AccountChecking, OpeningBalanceCents: 10000, OpeningDate: "2026-08-01", CurrentBalanceCents: 10000}
+	purchase := Transaction{Kind: Expense, AmountCents: 3000, AccountID: card.ID, Description: "Notebook", OccurrenceDate: "2026-08-10", InstallmentCount: 3}
+	got := CalculateDashboard([]Account{cash, card}, []Transaction{purchase}, fixedTime())
+	if got.AvailableBalanceCents != 10000 || got.TotalBalanceCents != 5000 || got.CreditCardDebtCents != 5000 || got.MonthlyExpenseCents != 3000 || len(got.AccountAllocations) != 1 {
+		t.Fatalf("dashboard=%+v", got)
+	}
+	if err := ValidateTransaction(purchase, card, nil, &Category{Kind: Expense}, fixedTime()); err != nil {
+		t.Fatalf("card expense rejected: %v", err)
+	}
+	income := purchase
+	income.Kind = Income
+	if !errors.Is(ValidateTransaction(income, card, nil, nil, fixedTime()), ErrCardTransaction) {
+		t.Fatal("card income accepted")
 	}
 }
 
