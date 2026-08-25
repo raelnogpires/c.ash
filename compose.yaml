@@ -1,0 +1,14 @@
+services:
+  cash:
+    build:
+      context: .
+      target: runtime
+    environment:
+      DISPLAY: ${DISPLAY:?Set DISPLAY to the host X11 display}
+    volumes:
+      - cash-data:/data
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    init: true
+
+volumes:
+  cash-data:

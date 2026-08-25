@@ -65,7 +65,7 @@ raiz do repositório:
 
 ```sh
 go build ./...
-go test ./...
+go test ./... 
 go vet ./...
 cd frontend && npm install && npm test && npm run build
 ```
@@ -100,6 +100,45 @@ desenvolvimento.
 Para empacotar, use `wails build`. No Ubuntu 24.04 e em distribuições que usam
 WebKitGTK 4.1, use `wails build -tags webkit2_41`. O binário é criado em
 `build/bin/`. O tamanho mínimo da janela é 960 × 640.
+
+## Docker
+
+O contêiner produz e executa a versão Linux do aplicativo. Como o `[c]ash` é
+uma aplicação desktop, ele usa o servidor X11 da máquina anfitriã para exibir a
+janela; Docker não substitui o ambiente gráfico do sistema.
+
+Em uma sessão Linux com X11, libere temporariamente o acesso ao display para o
+usuário `root` do contêiner e inicie a aplicação:
+
+```sh
+xhost +si:localuser:root
+docker compose up --build
+```
+
+Ao encerrar a aplicação, revogue a permissão concedida:
+
+```sh
+xhost -si:localuser:root
+```
+
+Os dados ficam no volume nomeado `cash-data`, separado do ciclo de vida do
+contêiner. Para executar novamente, basta usar `docker compose up`; não é
+necessário recriar o volume. A remoção explícita desse volume apaga os dados
+locais do aplicativo:
+
+```sh
+docker compose down --volumes
+```
+
+Para validar as camadas Go em um ambiente Docker sem abrir a interface:
+
+```sh
+docker build --target test -t cash-test .
+```
+
+O uso da janela pelo contêiner requer Linux com X11. Em Wayland, use uma sessão
+XWayland configurada pelo sistema ou execute o aplicativo localmente pelos
+comandos da seção anterior.
 
 ## Atualizações do aplicativo
 
