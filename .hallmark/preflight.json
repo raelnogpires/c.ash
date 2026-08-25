@@ -1,0 +1,10 @@
+{
+  "date": "2026-08-20",
+  "framework": "React 19 + Vite 7 + Wails 2",
+  "font_stack": "bundled Inter Variable for display, body, and financial values",
+  "palette": "semantic CSS custom properties for light, dark, and gothic themes",
+  "motion": "motion-cut; no animation library",
+  "spacing": "existing desktop workbench scale",
+  "icon_system": "bundled Lucide React with semantic names and 1.8 stroke",
+  "preserved": ["sidebar", "three themes", "960x640 minimum", "local-first interaction model"]
+}

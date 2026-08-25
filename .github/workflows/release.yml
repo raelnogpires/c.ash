@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Validate tag and test
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          test "$(printf '%s' "$TAG" | sed -nE 's/^v([0-9]+\.[0-9]+\.[0-9]+)$/\1/p')" != ''
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential
+          go test ./...
+          go vet ./...
+          npm ci --prefix frontend
+          npm test --prefix frontend
+          npm run build --prefix frontend
+
+  build-windows:
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build installer
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          VERSION="${TAG#v}"
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+          choco install nsis -y --no-progress
+          go build -trimpath -ldflags "-s -w" -o build/bin/cash-updater.exe ./cmd/cash-updater
+          python -c "import json; p='cmd/cash/wails.json'; d=json.load(open(p)); d['info']={'companyName':'c.ash','productName':'[c]ash','productVersion':'${VERSION}','copyright':'c.ash'}; open(p,'w').write(json.dumps(d))"
+          (cd cmd/cash && wails build -s -platform windows/amd64 -nsis -installscope user -webview2 embed -ldflags "-X main.version=${VERSION} -X main.commit=${SHA} -X main.repository=${REPOSITORY}")
+          mkdir -p dist
+          mv build/bin/cash-amd64-installer.exe "dist/cash_${VERSION}_windows_amd64_setup.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  build-linux:
+    needs: validate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build Debian package
+        env:
+          TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          VERSION="${TAG#v}"
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.43.0
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w" -o dist/cash-updater ./cmd/cash-updater
+          python3 -c "import json; p='cmd/cash/wails.json'; d=json.load(open(p)); d['info']={'companyName':'c.ash','productName':'[c]ash','productVersion':'${VERSION}','copyright':'c.ash'}; open(p,'w').write(json.dumps(d))"
+          (cd cmd/cash && wails build -s -tags webkit2_41 -ldflags "-X main.version=${VERSION} -X main.commit=${SHA} -X main.repository=${REPOSITORY}")
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/" build/linux/nfpm.yaml
+          sed -i "s|OWNER/REPOSITORY|${REPOSITORY}|" build/linux/nfpm.yaml
+          nfpm package --config build/linux/nfpm.yaml --packager deb --target "dist/cash_${VERSION}_linux_amd64.deb"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/cash_*_linux_amd64.deb
+
+  publish:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" dist/* --generate-notes --title "$TAG"

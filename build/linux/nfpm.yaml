@@ -1,0 +1,28 @@
+name: cash
+arch: amd64
+platform: linux
+version: VERSION_PLACEHOLDER
+section: utils
+priority: optional
+maintainer: c.ash
+description: Controle financeiro pessoal local
+vendor: c.ash
+homepage: https://github.com/OWNER/REPOSITORY
+license: Proprietary
+contents:
+  - src: build/bin/cash
+    dst: /usr/bin/cash
+    file_info:
+      mode: 0755
+  - src: dist/cash-updater
+    dst: /usr/bin/cash-updater
+    file_info:
+      mode: 0755
+  - src: build/linux/cash.desktop
+    dst: /usr/share/applications/cash.desktop
+  - src: build/appicon.png
+    dst: /usr/share/pixmaps/cash.png
+deb:
+  depends:
+    - libgtk-3-0
+    - libwebkit2gtk-4.1-0

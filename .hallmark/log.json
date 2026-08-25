@@ -1,0 +1,24 @@
+[
+  {
+    "date": "2026-08-21",
+    "scope": "app",
+    "macrostructure": "Stat-Led",
+    "theme": "preserved light/dark/gothic with bundled Inter Variable and Lucide",
+    "enrichment": "none",
+    "brief": "remove duplicated hierarchy, replace improvised glyphs, and unify the full app in an elegant sans-serif system"
+  },
+  {
+    "date": "2026-08-20",
+    "macrostructure": "Workbench continuation",
+    "theme": "existing light/dark/gothic system",
+    "enrichment": "none",
+    "brief": "transaction management, searchable choices, savings, transfers, edit and undo"
+  },
+  {
+    "date": "2026-08-21",
+    "macrostructure": "Stat-Led",
+    "theme": "preserved light/dark/gothic: parchment and forest, green-black and mint, charcoal and dusty rose",
+    "enrichment": "none",
+    "brief": "editorial local-first dashboard led by safe-to-spend, with a collapsible N3 rail and Ft2 factual footer"
+  }
+]

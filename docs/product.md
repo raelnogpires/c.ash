@@ -18,10 +18,16 @@ O dashboard deve responder primeiro quanto o usuário pode gastar com segurança
 Para isso, ele apresenta também:
 
 - saldo total;
+- disponível após as despesas fixas pendentes do mês;
 - valor reservado e valor livre;
 - receitas e despesas do mês;
 - contas e faturas próximas;
 - progresso de orçamento e metas.
+
+O dashboard também mostra a evolução mensal do saldo total e a distribuição do
+saldo entre contas. Um controle de olho oculta apenas valores de saldo na visão
+geral; valores de receitas, despesas e transações continuam legíveis para não
+prejudicar a conferência do histórico.
 
 O período padrão é o mês-calendário atual, com navegação entre meses e uma visão
 anual secundária. O usuário aprovará o MVP principalmente pela UI/UX; a evolução
@@ -47,6 +53,13 @@ se torna uma movimentação sem confirmação.
 Edições comuns são rápidas e oferecem desfazer. Confirmações ficam reservadas
 para operações destrutivas ou difíceis de reverter. Exclusões vão para uma
 lixeira recuperável, e alterações relevantes permanecem no histórico.
+
+### Despesas fixas
+
+Uma área própria reúne aluguel, assinaturas e contas mensais. Cada regra cria
+uma previsão para o mês, que aparece no disponível como compromisso pendente,
+mas não como transação. O usuário pode confirmar o pagamento com o valor real,
+dispensar uma ocorrência ou arquivar a regra sem apagar o histórico.
 
 ### Consulta
 

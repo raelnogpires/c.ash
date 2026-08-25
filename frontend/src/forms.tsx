@@ -1,0 +1,129 @@
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { Button, Icon, SearchCombobox } from './components'
+import { formatBRL, parseBRL, today } from './format'
+import type { Account, AccountInput, Category, ConfirmFixedExpenseOccurrenceInput, FixedExpense, FixedExpenseInput, FixedExpenseOccurrence, OnboardingInput, Theme, Transaction, TransactionInput, TransactionKind } from './types'
+
+export type SubmitStatus = 'idle' | 'loading' | 'error' | 'success'
+type SubmitState = { busy: boolean; error: string; status?: SubmitStatus }
+const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)
+const submitStatus = (state: SubmitState): SubmitStatus => state.busy ? 'loading' : state.error ? 'error' : state.status ?? 'idle'
+
+function FormError({ id, message }: { id: string; message: string }) {
+  const active = Boolean(message)
+  return <p id={id} className="form-error" role={active ? 'alert' : undefined} aria-live="assertive" aria-hidden={active ? undefined : true}>{message}</p>
+}
+
+export function AccountFields({ prefix = '', initial, invalidBalance = false, balanceErrorId }: { prefix?: string; initial?: Account; invalidBalance?: boolean; balanceErrorId?: string }) {
+  const id = useId()
+  const nameId = `${id}-name`, typeId = `${id}-type`, balanceId = `${id}-balance`, dateId = `${id}-date`
+  return <div className="form-grid">
+    <label className="field field--wide" htmlFor={nameId}><span>Nome da conta</span><input id={nameId} name={`${prefix}name`} placeholder="Ex.: Conta principal" autoComplete="off" defaultValue={initial?.name ?? ''} required aria-required="true" /></label>
+    <fieldset className="account-types field--wide" aria-required="true"><legend id={typeId}>Tipo de conta</legend>
+      <label><input type="radio" name={`${prefix}type`} value="checking" defaultChecked={!initial || initial.type==='checking'} required/><span><strong>Conta corrente</strong><small>Para pagamentos e movimentações do dia a dia.</small></span></label>
+      <label><input type="radio" name={`${prefix}type`} value="savings" defaultChecked={initial?.type==='savings'}/><span><strong>Poupança</strong><small>Reserva que nunca pode ficar com saldo negativo.</small></span></label>
+      <label><input type="radio" name={`${prefix}type`} value="cash" defaultChecked={initial?.type==='cash'}/><span><strong>Dinheiro</strong><small>Valores guardados ou usados fora do banco.</small></span></label>
+    </fieldset>
+    <label className="field" htmlFor={balanceId}><span>Saldo inicial</span><div className="money-input"><span aria-hidden="true">R$</span><input id={balanceId} name={`${prefix}balance`} inputMode="decimal" placeholder="0,00" defaultValue={initial?(initial.openingBalanceCents/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''} required aria-required="true" aria-invalid={invalidBalance ? true : undefined} aria-describedby={invalidBalance ? balanceErrorId : undefined} /></div></label>
+    <label className="field" htmlFor={dateId}><span>Data do saldo</span><input id={dateId} name={`${prefix}date`} type="date" defaultValue={initial?.openingDate ?? today()} max={today()} required aria-required="true" /></label>
+  </div>
+}
+
+function accountFromForm(data: FormData, prefix = ''): AccountInput | string {
+  const cents = parseBRL(String(data.get(`${prefix}balance`) ?? ''))
+  if (cents === null) return 'Informe um saldo válido, com até duas casas decimais.'
+  return { name: String(data.get(`${prefix}name`) ?? '').trim(), type: String(data.get(`${prefix}type`)) as AccountInput['type'], openingBalanceCents: cents, openingDate: String(data.get(`${prefix}date`)) }
+}
+
+export function Onboarding({ initialTheme, onComplete, onSkip }: { initialTheme: Theme; onComplete(input: OnboardingInput): Promise<void>; onSkip(): Promise<void> }) {
+  const [theme, setTheme] = useState<Theme>(initialTheme)
+  const [state, setState] = useState<SubmitState>({ busy: false, error: '' })
+  const displayNameId = useId(), errorId = useId()
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.documentElement.style.colorScheme = theme === 'light' ? 'light' : 'dark'
+  }, [theme])
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); const data = new FormData(event.currentTarget); const account = accountFromForm(data, 'account-')
+    if (typeof account === 'string') return setState({ busy: false, error: account })
+    setState({ busy: true, error: '' })
+    try { await onComplete({ displayName: String(data.get('displayName')).trim(), currency: 'BRL', theme, firstAccount: account }); setState({ busy: false, error: '', status: 'success' }) }
+    catch (error) { setState({ busy: false, error: errorMessage(error) }) }
+  }
+  const skip = async () => { setState({ busy: true, error: '' }); try { await onSkip(); setState({ busy: false, error: '', status: 'success' }) } catch (error) { setState({ busy: false, error: errorMessage(error) }) } }
+  const status = submitStatus(state)
+  return <main className="onboarding">
+    <section className="onboarding__intro"><div className="brand brand--large"><span>[c]</span>ash</div><p className="onboarding__kicker">Seu dinheiro, no seu ritmo</p><h1>Clareza começa com um primeiro registro.</h1><p>Organize o que você tem hoje. Seus dados ficam somente neste computador.</p><div className="privacy-note"><span aria-hidden="true"><Icon name="shieldCheck"/></span><span><strong>Privado por princípio</strong><br/>Sem conta online, sem planilha, sem dados fictícios.</span></div></section>
+    <section className="onboarding__panel" aria-labelledby="setup-title"><div className="step-label">Configuração inicial · 1 de 1</div><h2 id="setup-title">Vamos preparar seu espaço</h2><p>Informe os dados básicos. Você pode ajustar o tema depois.</p>
+      <form onSubmit={submit} aria-busy={state.busy ? true : undefined} data-state={status} aria-describedby={state.error ? errorId : undefined}><label className="field field--wide" htmlFor={displayNameId}><span>Como podemos chamar você?</span><input id={displayNameId} name="displayName" autoFocus required aria-required="true" autoComplete="name" placeholder="Seu primeiro nome" /></label>
+        <fieldset className="theme-picker"><legend>Aparência</legend>{(['light','dark','gothic'] as Theme[]).map((item) => <label key={item} className={`theme-choice theme-choice--${item}`}><input type="radio" name="theme" value={item} checked={theme===item} onChange={() => setTheme(item)} /><span className="theme-preview" aria-hidden="true"><i/><i/><i/></span><span>{item==='light'?'Claro':item==='dark'?'Escuro':'Gótico'}</span></label>)}</fieldset>
+        <div className="section-rule"><span>Sua primeira conta</span></div><AccountFields prefix="account-" invalidBalance={state.error.includes('saldo válido')} balanceErrorId={errorId} />
+        <FormError id={errorId} message={state.error} />
+        <div className="form-actions"><Button type="button" kind="ghost" disabled={state.busy} loading={state.busy} state={status} onClick={skip}>Fazer isso depois</Button><Button type="submit" disabled={state.busy} loading={state.busy} state={status}>{state.busy ? 'Salvando…' : 'Começar agora'} <Icon name="arrowRight" /></Button></div>
+      </form>
+    </section>
+  </main>
+}
+
+export function AccountForm({ initial, onSubmit, onCancel }: { initial?: Account; onSubmit(input: AccountInput): Promise<void>; onCancel?(): void }) {
+  const [state, setState] = useState<SubmitState>({busy:false,error:''})
+  const errorId = useId()
+  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form=event.currentTarget; const account = accountFromForm(new FormData(form)); if (typeof account === 'string') return setState({busy:false,error:account}); setState({busy:true,error:''}); try { await onSubmit(account); form.reset(); setState({busy:false,error:'',status:'success'}) } catch(error){ setState({busy:false,error:errorMessage(error)}) } }
+  const status = submitStatus(state)
+  return <form className="card form-card" onSubmit={submit} aria-busy={state.busy ? true : undefined} data-state={status} aria-describedby={state.error ? errorId : undefined}><div className="card__heading"><div><h2>{initial?'Revise os dados':'Onde está seu dinheiro?'}</h2></div></div><AccountFields initial={initial} invalidBalance={state.error.includes('saldo válido')} balanceErrorId={errorId}/><FormError id={errorId} message={state.error}/><div className="form-actions">{onCancel && <Button type="button" kind="ghost" onClick={onCancel}>Cancelar</Button>}<Button disabled={state.busy} loading={state.busy} state={status}>{state.busy?'Salvando…':initial?'Salvar alterações':'Criar conta'}</Button></div></form>
+}
+
+export function FixedExpenseForm({ accounts, categories, initial, onSubmit, onCancel }: { accounts: Account[]; categories: Category[]; initial?: FixedExpense; onSubmit(input: FixedExpenseInput): Promise<void>; onCancel(): void }) {
+  const [accountId,setAccountId]=useState(initial?.accountId ?? accounts[0]?.id ?? ''), [categoryId,setCategoryId]=useState(initial?.categoryId ?? ''), [state,setState]=useState<SubmitState>({busy:false,error:''})
+  const id = useId(), errorId = `${id}-error`, descriptionId = `${id}-description`, amountId = `${id}-amount`, dueDayId = `${id}-due-day`
+  const accountOptions=accounts.map(account=>({id:account.id,label:account.name,detail:account.type==='checking'?'Conta corrente':account.type==='savings'?'Poupança':'Dinheiro'})), categoryOptions=categories.filter(category=>category.kind==='expense').map(category=>({id:category.id,label:category.name}))
+  const submit=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const data=new FormData(event.currentTarget);const amountCents=parseBRL(String(data.get('amount'))),dueDay=Number(data.get('dueDay'));if(amountCents===null||amountCents<=0)return setState({busy:false,error:'Informe um valor maior que zero.'});if(!accountId)return setState({busy:false,error:'Escolha uma conta.'});if(!categoryId)return setState({busy:false,error:'Escolha uma categoria.'});setState({busy:true,error:''});try{await onSubmit({description:String(data.get('description')).trim(),amountCents,dueDay,accountId,categoryId});setState({busy:false,error:'',status:'success'})}catch(error){setState({busy:false,error:errorMessage(error)})}}
+  const status = submitStatus(state)
+  return <form className="card form-card fixed-expense-form" onSubmit={submit} aria-busy={state.busy ? true : undefined} data-state={status} aria-describedby={state.error ? errorId : undefined}><div className="card__heading"><div><h2>{initial?'Ajuste os próximos meses':'O que vence todo mês?'}</h2></div></div><p className="form-intro">A previsão não movimenta seu saldo até você confirmar o pagamento.</p><div className="form-grid"><label className="field field--wide" htmlFor={descriptionId}><span>Descrição</span><input id={descriptionId} name="description" autoFocus required aria-required="true" defaultValue={initial?.description ?? ''} placeholder="Ex.: Aluguel, streaming, internet"/></label><label className="field" htmlFor={amountId}><span>Valor estimado</span><div className="money-input"><span aria-hidden="true">R$</span><input id={amountId} name="amount" required aria-required="true" aria-invalid={state.error === 'Informe um valor maior que zero.' ? true : undefined} aria-describedby={state.error === 'Informe um valor maior que zero.' ? errorId : undefined} inputMode="decimal" placeholder="0,00" defaultValue={initial?(initial.amountCents/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''}/></div></label><label className="field" htmlFor={dueDayId}><span>Dia do vencimento</span><input id={dueDayId} name="dueDay" type="number" min="1" max="31" required aria-required="true" defaultValue={initial?.dueDay ?? ''} placeholder="Ex.: 10"/></label><SearchCombobox label="Conta de pagamento" options={accountOptions} value={accountId} onChange={setAccountId} disabled={state.busy} error={state.error === 'Escolha uma conta.' ? state.error : ''}/><SearchCombobox label="Categoria" options={categoryOptions} value={categoryId} onChange={setCategoryId} disabled={state.busy} error={state.error === 'Escolha uma categoria.' ? state.error : ''}/></div><FormError id={errorId} message={state.error}/><div className="form-actions"><Button type="button" kind="ghost" disabled={state.busy} onClick={onCancel}>Cancelar</Button><Button disabled={state.busy} loading={state.busy} state={status}>{state.busy?'Salvando…':initial?'Salvar alterações':'Criar despesa fixa'}</Button></div></form>
+}
+
+export function ConfirmFixedExpenseDialog({ occurrence, onClose, onSubmit }: { occurrence: FixedExpenseOccurrence; onClose(): void; onSubmit(input: ConfirmFixedExpenseOccurrenceInput): Promise<void> }) {
+  const [state,setState]=useState<SubmitState>({busy:false,error:''}), dialog=useRef<HTMLElement>(null), first=useRef<HTMLInputElement>(null)
+  const id = useId(), amountId = `${id}-amount`, dateId = `${id}-date`, descriptionId = `${id}-description`, errorId = `${id}-error`
+  useEffect(()=>first.current?.focus(),[])
+  const submit=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const data=new FormData(event.currentTarget),amountCents=parseBRL(String(data.get('amount')));if(amountCents===null||amountCents<=0)return setState({busy:false,error:'Informe um valor maior que zero.'});setState({busy:true,error:''});try{await onSubmit({amountCents,occurrenceDate:String(data.get('date'))});setState({busy:false,error:'',status:'success'});onClose()}catch(error){setState({busy:false,error:errorMessage(error)})}}
+  const keepFocus=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!state.busy){event.preventDefault();onClose();return}if(event.key!=='Tab'||!dialog.current)return;const items=Array.from(dialog.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)'));const firstItem=items[0],lastItem=items.at(-1);if(event.shiftKey&&document.activeElement===firstItem){event.preventDefault();lastItem?.focus()}else if(!event.shiftKey&&document.activeElement===lastItem){event.preventDefault();firstItem?.focus()}}
+  const status = submitStatus(state)
+  return <div className="dialog-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget&&!state.busy)onClose()}}><section ref={dialog} className="dialog dialog--confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-fixed-title" aria-describedby={descriptionId} aria-busy={state.busy ? true : undefined} data-state={status} onKeyDown={keepFocus}><header><div><h2 id="confirm-fixed-title">{occurrence.description}</h2></div><button className="icon-button" type="button" disabled={state.busy} onClick={onClose} aria-label="Fechar"><Icon name="close"/></button></header><p id={descriptionId}>Registre o valor real pago. A despesa será incluída na conta {occurrence.accountName}.</p><form onSubmit={submit} aria-busy={state.busy ? true : undefined} data-state={status} aria-describedby={state.error ? errorId : undefined}><div className="form-grid"><label className="field" htmlFor={amountId}><span>Valor pago</span><div className="money-input"><span aria-hidden="true">R$</span><input id={amountId} ref={first} name="amount" inputMode="decimal" required aria-required="true" aria-invalid={state.error === 'Informe um valor maior que zero.' ? true : undefined} aria-describedby={state.error === 'Informe um valor maior que zero.' ? errorId : undefined} defaultValue={(occurrence.expectedAmountCents/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}/></div></label><label className="field" htmlFor={dateId}><span>Data do pagamento</span><input id={dateId} name="date" type="date" defaultValue={today()} max={today()} required aria-required="true"/></label></div><FormError id={errorId} message={state.error}/><div className="form-actions"><Button type="button" kind="ghost" disabled={state.busy} onClick={onClose}>Cancelar</Button><Button disabled={state.busy} loading={state.busy} state={status}><Icon name="check"/>{state.busy?'Confirmando…':'Confirmar pagamento'}</Button></div></form></section></div>
+}
+
+export function DeleteAccountDialog({ account, onClose, onConfirm }: { account: Account; onClose(): void; onConfirm(): Promise<void> }) {
+  const [state,setState]=useState<SubmitState>({busy:false,error:''}), dialog=useRef<HTMLElement>(null), cancel=useRef<HTMLButtonElement>(null)
+  const errorId = useId()
+  useEffect(()=>cancel.current?.focus(),[])
+  const confirm=async()=>{setState({busy:true,error:''});try{await onConfirm();setState({busy:false,error:'',status:'success'})}catch(error){setState({busy:false,error:errorMessage(error)})}}
+  const keepFocus=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!state.busy){event.preventDefault();onClose();return}if(event.key!=='Tab'||!dialog.current)return;const items=Array.from(dialog.current.querySelectorAll<HTMLElement>('button:not(:disabled)'));if(!items.length)return;const first=items[0],last=items[items.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}
+  const status = submitStatus(state)
+  return <div className="dialog-backdrop"><section ref={dialog} className="dialog dialog--confirm" role="alertdialog" aria-modal="true" aria-labelledby="delete-account-title" aria-describedby={`delete-account-description${state.error ? ` ${errorId}` : ''}`} aria-busy={state.busy ? true : undefined} data-state={status} onKeyDown={keepFocus}>
+    <header><div><h2 id="delete-account-title">Remover “{account.name}”?</h2></div></header>
+    <p id="delete-account-description">Esta ação é permanente e não poderá ser desfeita. A conta só será removida se não possuir nenhuma movimentação vinculada.</p>
+    <FormError id={errorId} message={state.error}/> 
+    <div className="form-actions"><button ref={cancel} type="button" className="button button--ghost" disabled={state.busy} onClick={onClose}>Cancelar</button><button type="button" className="button button--danger" data-state={status} aria-busy={state.busy ? true : undefined} aria-live={state.busy ? 'polite' : undefined} disabled={state.busy} onClick={()=>void confirm()}>{state.busy?'Removendo…':'Remover permanentemente'}</button></div>
+  </section></div>
+}
+
+export function TransactionDialog({ accounts, categories, initial, onClose, onSubmit }: { accounts: Account[]; categories: Category[]; initial?: Transaction; onClose(): void; onSubmit(input: TransactionInput): Promise<void> }) {
+  const [kind,setKind]=useState<TransactionKind>(initial?.kind ?? 'expense'), [accountId,setAccountId]=useState(initial?.accountId ?? accounts[0]?.id ?? ''), [destinationAccountId,setDestinationAccountId]=useState(initial?.destinationAccountId ?? ''), [categoryId,setCategoryId]=useState(initial?.categoryId ?? '')
+  const [state,setState]=useState<SubmitState>({busy:false,error:''}); const first=useRef<HTMLInputElement>(null); const dialog=useRef<HTMLElement>(null)
+  const id = useId(), descriptionId = `${id}-description`, amountId = `${id}-amount`, dateId = `${id}-date`, errorId = `${id}-error`
+  useEffect(()=>first.current?.focus(),[])
+  useEffect(()=>{const close=(event:globalThis.KeyboardEvent)=>{if(event.key==='Escape'&&!state.busy){event.preventDefault();onClose()}};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close)},[onClose,state.busy])
+  const submit=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const data=new FormData(event.currentTarget);const cents=parseBRL(String(data.get('amount')));if(cents===null||cents<=0)return setState({busy:false,error:'Informe um valor maior que zero.'});if(!accountId)return setState({busy:false,error:'Escolha uma conta.'});if(kind==='transfer'&&!destinationAccountId)return setState({busy:false,error:'Escolha a conta de destino.'});setState({busy:true,error:''});try{await onSubmit({kind,amountCents:cents,accountId,destinationAccountId:kind==='transfer'?destinationAccountId:'',categoryId:kind==='transfer'?'':categoryId,description:String(data.get('description')).trim(),occurrenceDate:String(data.get('date'))});setState({busy:false,error:'',status:'success'});onClose()}catch(error){setState({busy:false,error:errorMessage(error)})}}
+  const filtered=categories.filter((category)=>category.kind===kind), typeName=(account:Account)=>account.type==='checking'?'Conta corrente':account.type==='savings'?'Poupança':'Dinheiro'
+  const accountOptions=accounts.map(account=>({id:account.id,label:account.name,detail:`${typeName(account)} · ${formatBRL(account.currentBalanceCents)}`})), categoryOptions=filtered.map(category=>({id:category.id,label:category.name}))
+  const keepFocus=(event:KeyboardEvent)=>{if(event.key!=='Tab'||!dialog.current)return;const items=Array.from(dialog.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)'));if(!items.length)return;const firstItem=items[0],lastItem=items[items.length-1];if(event.shiftKey&&document.activeElement===firstItem){event.preventDefault();lastItem.focus()}else if(!event.shiftKey&&document.activeElement===lastItem){event.preventDefault();firstItem.focus()}}
+  const status = submitStatus(state)
+  return <div className="dialog-backdrop" onMouseDown={(event)=>{if(event.target===event.currentTarget&&!state.busy)onClose()}}><section ref={dialog} className="dialog" role="dialog" aria-modal="true" aria-labelledby="transaction-title" aria-busy={state.busy ? true : undefined} data-state={status} onKeyDown={keepFocus}><header><div><h2 id="transaction-title">{initial?'Editar registro':'Novo registro'}</h2></div><button className="icon-button" type="button" disabled={state.busy} onClick={onClose} aria-label="Fechar"><Icon name="close"/></button></header><form onSubmit={submit} aria-busy={state.busy ? true : undefined} data-state={status} aria-describedby={state.error ? errorId : undefined}>
+    <div className="segmented" role="radiogroup" aria-label="Tipo de movimentação">{([['expense','Despesa'],['income','Receita'],['transfer','Transferência']] as const).map(([value,label])=><label key={value}><input type="radio" name="kind" value={value} checked={kind===value} onChange={()=>{setKind(value);setCategoryId('');if(value!=='transfer')setDestinationAccountId('')}}/><span>{label}</span></label>)}</div>
+    <label className="field field--wide" htmlFor={descriptionId}><span>Descrição {kind==='transfer'&&<em>opcional</em>}</span><input id={descriptionId} ref={first} name="description" defaultValue={initial?.description ?? ''} required={kind!=='transfer'} aria-required={kind!=='transfer' || undefined} placeholder={kind==='expense'?'Ex.: Mercado':kind==='income'?'Ex.: Pagamento recebido':'Preenchida automaticamente se ficar vazia'} /></label>
+    <div className="form-grid"><label className="field" htmlFor={amountId}><span>Valor</span><div className="money-input"><span aria-hidden="true">R$</span><input id={amountId} name="amount" inputMode="decimal" required aria-required="true" aria-invalid={state.error === 'Informe um valor maior que zero.' ? true : undefined} aria-describedby={state.error === 'Informe um valor maior que zero.' ? errorId : undefined} placeholder="0,00" defaultValue={initial?(initial.amountCents/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''} /></div></label><label className="field" htmlFor={dateId}><span>Data</span><input id={dateId} name="date" type="date" defaultValue={initial?.occurrenceDate ?? today()} max={today()} required aria-required="true" /></label>
+      <SearchCombobox label={kind==='transfer'?'Conta de origem':'Conta'} options={accountOptions} value={accountId} onChange={setAccountId} disabled={state.busy} error={state.error === 'Escolha uma conta.' ? state.error : ''}/>
+      {kind==='transfer'?<SearchCombobox label="Conta de destino" options={accountOptions.filter(option=>option.id!==accountId)} value={destinationAccountId} onChange={setDestinationAccountId} disabled={state.busy} error={state.error === 'Escolha a conta de destino.' ? state.error : ''}/>:<SearchCombobox label="Categoria" options={[{id:'',label:'Sem categoria'},...categoryOptions]} value={categoryId} onChange={setCategoryId} optional disabled={state.busy}/>} 
+    </div>
+    <FormError id={errorId} message={state.error}/><div className="form-actions"><Button type="button" kind="ghost" disabled={state.busy} onClick={onClose}>Cancelar</Button><Button disabled={state.busy} loading={state.busy} state={status}>{state.busy?'Salvando…':initial?'Salvar alterações':'Registrar'}</Button></div>
+  </form></section></div>
+}

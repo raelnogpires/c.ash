@@ -36,7 +36,7 @@ O primeiro lançamento incluirá:
 - orçamento mensal geral e limites opcionais por categoria;
 - reserva de emergência e outras metas de economia;
 - dashboard mensal, busca, filtros e alertas internos;
-- importação OFX e CSV, com detecção assistida de duplicatas;
+- importação OFX, CSV e extratos PDF do Itaú, Bradesco e Inter, com detecção de duplicatas;
 - lixeira, histórico de alterações e ajustes de saldo explícitos;
 - backup, restauração, exportação CSV/JSON e criptografia opcional;
 - temas claro, escuro e gótico.
@@ -57,14 +57,83 @@ As regras financeiras e a persistência ficam em Go. A interface cuida apenas
 da apresentação, do estado transitório das telas e de validações imediatas de
 formulário.
 
-O código ainda não foi inicializado. Quando isso acontecer, o fluxo padrão será:
+## Desenvolvimento
+
+O primeiro fluxo vertical já está implementado com Go 1.25+, Wails v2.13.0,
+React, TypeScript, Vite e SQLite puro em Go. Para validar as camadas a partir da
+raiz do repositório:
 
 ```sh
-go run ./cmd/cash
 go build ./...
 go test ./...
 go vet ./...
+cd frontend && npm install && npm test && npm run build
 ```
+
+Para executar o aplicativo localmente com a ponte desktop embutida, a partir da
+raiz do repositório:
+
+```sh
+go run -tags desktop,production,webkit2_41 ./cmd/cash
+```
+
+Em distribuições que ainda fornecem WebKitGTK 4.0, omita
+`webkit2_41` da lista de tags. No Linux, o aplicativo também desativa por
+padrão o renderizador DMA-BUF do WebKitGTK, que pode produzir uma janela branca
+e sem interação em algumas combinações de GPU e driver.
+
+Para trabalhar com recarregamento automático, instale o CLI fixado do Wails e
+inicie pelo diretório que contém `wails.json`:
+
+```sh
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+cd cmd/cash
+wails dev
+```
+
+Encerre a instância anterior com `Ctrl+C` antes de iniciar outra. O modo
+`wails dev` usa as portas locais `34115` (ponte Wails) e `5173` ou a próxima
+porta livre (Vite). Se o WebKitGTK encaminhar `runtime:ready` para a ponte de
+navegador, use o comando `go run` acima; ele não depende dessa ponte de
+desenvolvimento.
+
+Para empacotar, use `wails build`. No Ubuntu 24.04 e em distribuições que usam
+WebKitGTK 4.1, use `wails build -tags webkit2_41`. O binário é criado em
+`build/bin/`. O tamanho mínimo da janela é 960 × 640.
+
+## Atualizações do aplicativo
+
+Versões instaladas consultam diariamente a última release estável do GitHub e
+oferecem a atualização nas Configurações. A instalação sempre depende da
+confirmação do usuário; o aplicativo baixa o pacote compilado da plataforma,
+valida o SHA-256 fornecido pela API do GitHub e reinicia após a atualização.
+Não há `git pull`, Go, Node, Wails ou Git na máquina de quem usa o aplicativo.
+
+No Windows, a release entrega um instalador NSIS por usuário com o bootstrapper
+do WebView2. Em Ubuntu, Linux Mint e Debian, a release entrega um `.deb` que
+declara GTK3 e WebKitGTK; o sistema pode pedir a senha administrativa padrão,
+mas não exige comandos manuais. Releases são geradas por tags semânticas como
+`v0.2.0` no GitHub Actions.
+
+Os dados de produção ficam em `c.ash/cash.db` sob o diretório de configuração
+do usuário da plataforma. Testes injetam caminhos temporários e não usam dados
+reais. Uma trava de arquivo impede duas instâncias de escreverem no mesmo banco.
+
+## Importação de extratos PDF
+
+Na tela de movimentações, o usuário pode associar à conta um extrato PDF de até
+15 MB do Itaú, Bradesco ou Inter. O arquivo é lido localmente e não é preservado
+depois do processamento. A gravação do lote é atômica.
+
+Cada lançamento importado recebe uma origem automática e uma assinatura formada
+pela conta, banco, data, natureza, valor, descrição e ocorrência. Isso permite
+importar extratos todos os meses — inclusive com períodos sobrepostos — sem
+duplicar o histórico. A assinatura permanece reservada quando uma movimentação é
+editada ou excluída, portanto uma nova importação não desfaz a escolha do usuário.
+Lançamentos automáticos anteriores à criação da conta local aparecem no histórico
+e nos relatórios, mas não alteram novamente o saldo de abertura informado pelo
+usuário.
+PDFs protegidos por senha ou compostos apenas por imagens não são compatíveis.
 
 Os comandos do frontend e de empacotamento serão documentados quando as
 ferramentas forem configuradas.

@@ -1,0 +1,306 @@
+/* Hallmark · runtime token source · editorial utility
+ * Themes: light · dark · gothic
+ * Geometry is shared by every theme; only semantic colour values change.
+ * Pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass · motion: restrained
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Light palette: warm parchment, ivory surfaces, forest ink. */
+  --color-paper: oklch(95.83% 0.0111 89.72);
+  --color-paper-2: oklch(99.42% 0.0069 88.64);
+  --color-paper-3: oklch(93.14% 0.0140 88.69);
+  --color-surface-raised: oklch(98.68% 0.0118 79.79);
+  --color-ink: oklch(26.84% 0.0189 160.95);
+  --color-ink-2: oklch(51.50% 0.0152 159.58);
+  --color-muted: oklch(51.50% 0.0152 159.58);
+  --color-neutral: oklch(51.50% 0.0152 159.58);
+  --color-rule: oklch(88.57% 0.0142 88.69);
+  --color-rule-2: oklch(81.76% 0.0145 88.70);
+  --color-accent: oklch(37.86% 0.0597 165.03);
+  --color-accent-strong: oklch(31.03% 0.0473 166.40);
+  --color-accent-soft: oklch(92.83% 0.0167 162.73);
+  --color-accent-ink: oklch(95.83% 0.0111 89.72);
+  --color-positive: oklch(50.61% 0.0919 161.45);
+  --color-positive-soft: oklch(94.45% 0.0199 159.74);
+  --color-negative: oklch(51.16% 0.1301 26.77);
+  --color-negative-soft: oklch(93.38% 0.0180 30.27);
+  --color-negative-ink: oklch(98.68% 0.0118 79.79);
+  --color-warning: oklch(51.21% 0.1010 70.15);
+  --color-warning-surface: oklch(94.78% 0.0160 82.79);
+  --color-warning-border: oklch(51.21% 0.1010 70.15 / 45%);
+  --color-focus: oklch(53.24% 0.0794 163.94);
+  --color-overlay: oklch(14.89% 0.0080 164.48 / 55%);
+  --color-overlay-ink: var(--color-paper-2);
+  --color-transparent: oklch(50% 0.0100 160 / 0%);
+  --color-accent-overlay-border: oklch(96% 0.0060 160 / 30%);
+  --color-accent-overlay-hover: oklch(96% 0.0060 160 / 13%);
+
+  /* Theme previews stay stable so the picker can compare all three schemes. */
+  --preview-light-canvas: oklch(95.90% 0.0115 84.58);
+  --preview-light-border: oklch(88.37% 0.0175 84.59);
+  --preview-light-muted: oklch(86.08% 0.0156 90.25);
+  --preview-light-accent: oklch(42.62% 0.0589 163.97);
+  --preview-dark-canvas: oklch(21.44% 0.0119 156.08);
+  --preview-dark-border: oklch(36.09% 0.0218 158.10);
+  --preview-dark-muted: oklch(38.66% 0.0225 160.10);
+  --preview-dark-accent: oklch(77.68% 0.0772 159.44);
+  --preview-gothic-canvas: oklch(15.25% 0.0050 345.82);
+  --preview-gothic-border: oklch(37.07% 0.0362 357.27);
+  --preview-gothic-muted: oklch(33.11% 0.0397 1.90);
+  --preview-gothic-accent: oklch(53.84% 0.1021 6.01);
+  --color-preview-light-canvas: var(--preview-light-canvas);
+  --color-preview-light-border: var(--preview-light-border);
+  --color-preview-light-muted: var(--preview-light-muted);
+  --color-preview-light-accent: var(--preview-light-accent);
+  --color-preview-light-ink: oklch(26.84% 0.0189 160.95);
+  --color-preview-dark-canvas: var(--preview-dark-canvas);
+  --color-preview-dark-border: var(--preview-dark-border);
+  --color-preview-dark-muted: var(--preview-dark-muted);
+  --color-preview-dark-accent: var(--preview-dark-accent);
+  --color-preview-dark-ink: oklch(95.40% 0.0068 145.52);
+  --color-preview-gothic-canvas: var(--preview-gothic-canvas);
+  --color-preview-gothic-border: var(--preview-gothic-border);
+  --color-preview-gothic-muted: var(--preview-gothic-muted);
+  --color-preview-gothic-accent: var(--preview-gothic-accent);
+  --color-preview-gothic-ink: oklch(93.48% 0.0149 70.88);
+
+  /* Inter Variable is bundled with the application; no network request is required. */
+  --font-display: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Type scale and rhythm. Headings remain roman in every theme. */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.5625rem;
+  --text-xl: 1.9531rem;
+  --text-2xl: 2.4414rem;
+  --text-display-s: clamp(2.25rem, 4vw + 0.5rem, 3.8147rem);
+  --text-display: clamp(2.75rem, 5vw + 1rem, 5.25rem);
+  --text-stat: clamp(2.5rem, 7vw, 6rem);
+  --leading-none: 1;
+  --leading-tight: 1.06;
+  --leading-snug: 1.25;
+  --leading-body: 1.55;
+  --leading-relaxed: 1.65;
+  --tracking-tight: -0.035em;
+  --tracking-display: -0.04em;
+  --tracking-label: 0.08em;
+
+  /* Named 4-point scale. This geometry is invariant across themes. */
+  --space-3xs: 4px;
+  --space-2xs: 8px;
+  --space-xs: 12px;
+  --space-sm: 16px;
+  --space-md: 20px;
+  --space-lg: 24px;
+  --space-xl: 28px;
+  --space-2xl: 32px;
+  --space-3xl: 40px;
+  --space-4xl: 48px;
+  --space-5xl: 56px;
+  --space-6xl: 64px;
+  --space-7xl: 80px;
+  --space-8xl: 96px;
+
+  /* Rules, corners, and controls share one physical geometry. */
+  --rule-hairline: 1px;
+  --rule-strong: 2px;
+  --rule-hair: 1px;
+  --rule-fine: 2px;
+  --rule-focus: 2px;
+  --rule-chart: 3px;
+  --border-width: var(--rule-hair);
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius: 12px;
+  --radius-card: 12px;
+  --radius-input: 8px;
+  --radius-button: 8px;
+  --radius-pill: 999px;
+  --control-height: 44px;
+  --control-height-compact: 40px;
+  --icon-button-size: 44px;
+  --icon-size: 20px;
+  --target-size: 44px;
+  --target-size-coarse: 48px;
+
+  /* Application geometry. */
+  --sidebar-width: 15.5rem;
+  --sidebar-collapsed-width: 5rem;
+  --content-max: 78rem;
+  --dock-height: 4rem;
+  --empty-height: 15rem;
+  --account-card-height: 11rem;
+  --theme-swatch-height: 6.5rem;
+  --dialog-width: 42rem;
+  --dialog-confirm-width: 31rem;
+  --combobox-height: 13rem;
+  --backdrop-blur: 3px;
+
+  /* Stacking is named so menus and feedback never compete accidentally. */
+  --z-base: 0;
+  --z-sticky: 5;
+  --z-menu: 7;
+  --z-dialog: 10;
+  --z-popover: 12;
+  --z-snackbar: 20;
+  --z-tooltip: 30;
+  --z-dropdown: var(--z-menu);
+  --z-modal: var(--z-dialog);
+  --z-toast: var(--z-snackbar);
+
+  /* Motion is limited to transform and opacity in consuming styles. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+  --dur-loading: 1600ms;
+  --dur-reduced: 1ms;
+  --duration-micro: var(--dur-micro);
+  --duration-short: var(--dur-short);
+  --duration-long: var(--dur-long);
+  --duration-loading: var(--dur-loading);
+
+  /* Shared shadow geometry; theme overrides may only tune ink opacity. */
+  --shadow: 0 18px 55px oklch(29.76% 0.0174 158.81 / 8%);
+  --shadow-card: 0 8px 30px oklch(26.84% 0.0189 160.95 / 3%);
+  --shadow-dialog: 0 30px 90px oklch(12% 0.0100 160 / 30%);
+  --shadow-selected: 0 2px 8px oklch(12% 0.0100 160 / 7%);
+  --shadow-menu: 0 18px 55px oklch(12% 0.0100 160 / 18%);
+  --shadow-gothic-inset: inset 0 0 0 1px oklch(75.33% 0.0586 3.33 / 3%);
+  --shadow-none: 0 0 0 oklch(50% 0.0100 160 / 0%);
+
+  /* Short names retained for the first frontend slice during migration. */
+  --canvas: var(--color-paper);
+  --surface: var(--color-paper-2);
+  --surface-muted: var(--color-paper-3);
+  --surface-raised: var(--color-surface-raised);
+  --text: var(--color-ink);
+  --text-muted: var(--color-muted);
+  --border: var(--color-rule);
+  --border-strong: var(--color-rule-2);
+  --accent: var(--color-accent);
+  --accent-strong: var(--color-accent-strong);
+  --accent-soft: var(--color-accent-soft);
+  --accent-ink: var(--color-accent-ink);
+  --positive: var(--color-positive);
+  --positive-soft: var(--color-positive-soft);
+  --negative: var(--color-negative);
+  --negative-soft: var(--color-negative-soft);
+  --negative-ink: var(--color-negative-ink);
+  --warning: var(--color-warning);
+  --warning-border: var(--color-warning-border);
+  --warning-surface: var(--color-warning-surface);
+  --focus: var(--color-focus);
+  --overlay: var(--color-overlay);
+  --accent-overlay-border: var(--color-accent-overlay-border);
+  --accent-overlay-hover: var(--color-accent-overlay-hover);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Dark palette: green-black paper, lifted moss surfaces, mint accent. */
+  --color-paper: oklch(19.68% 0.0121 155.94);
+  --color-paper-2: oklch(23.79% 0.0150 157.63);
+  --color-paper-3: oklch(28.15% 0.0177 158.71);
+  --color-surface-raised: oklch(26.10% 0.0180 158.55);
+  --color-ink: oklch(95.40% 0.0068 145.52);
+  --color-ink-2: oklch(75.57% 0.0167 154.37);
+  --color-muted: oklch(75.57% 0.0167 154.37);
+  --color-neutral: oklch(75.57% 0.0167 154.37);
+  --color-rule: oklch(36.09% 0.0218 158.10);
+  --color-rule-2: oklch(45.80% 0.0255 157.81);
+  --color-accent: oklch(77.68% 0.0772 159.44);
+  --color-accent-strong: oklch(83.17% 0.0627 160.02);
+  --color-accent-soft: oklch(33.51% 0.0388 160.65);
+  --color-accent-ink: oklch(18.92% 0.0098 158.99);
+  --color-positive: oklch(77.93% 0.0879 161.03);
+  --color-positive-soft: oklch(32.59% 0.0418 160.26);
+  --color-negative: oklch(76.69% 0.1015 27.16);
+  --color-negative-soft: oklch(31.37% 0.0363 24.61);
+  --color-negative-ink: oklch(17.10% 0.0158 26.01);
+  --color-warning: oklch(80.63% 0.1054 79.41);
+  --color-warning-surface: oklch(30.22% 0.0212 119.08);
+  --color-warning-border: oklch(80.63% 0.1054 79.41 / 45%);
+  --color-focus: oklch(81.17% 0.0703 160.01);
+  --color-overlay: oklch(8% 0.0080 160 / 55%);
+  --color-accent-overlay-border: oklch(96% 0.0060 160 / 30%);
+  --color-accent-overlay-hover: oklch(96% 0.0060 160 / 13%);
+
+  --shadow: 0 18px 55px oklch(8% 0.0080 160 / 25%);
+  --shadow-card: 0 8px 30px oklch(8% 0.0080 160 / 12%);
+  --shadow-dialog: 0 30px 90px oklch(8% 0.0080 160 / 44%);
+  --shadow-menu: 0 18px 55px oklch(8% 0.0080 160 / 35%);
+}
+
+:root[data-theme="gothic"] {
+  color-scheme: dark;
+
+  /* Gothic palette: charcoal paper, burgundy rules, dusty rose accent. */
+  --color-paper: oklch(15.25% 0.0050 345.82);
+  --color-paper-2: oklch(19.37% 0.0090 351.90);
+  --color-paper-3: oklch(23.55% 0.0166 358.61);
+  --color-surface-raised: oklch(21.27% 0.0103 355.94);
+  --color-ink: oklch(93.48% 0.0149 70.88);
+  --color-ink-2: oklch(74.93% 0.0189 39.37);
+  --color-muted: oklch(74.93% 0.0189 39.37);
+  --color-neutral: oklch(74.93% 0.0189 39.37);
+  --color-rule: oklch(35.19% 0.0326 3.85);
+  --color-rule-2: oklch(46.87% 0.0452 358.53);
+  --color-accent: oklch(75.33% 0.0586 3.33);
+  --color-accent-strong: oklch(88.84% 0.0319 5.57);
+  --color-accent-soft: oklch(28.22% 0.0433 1.12);
+  --color-accent-ink: oklch(18.92% 0.0098 158.99);
+  --color-positive: oklch(77.12% 0.0497 149.73);
+  --color-positive-soft: oklch(31.54% 0.0291 150.52);
+  --color-negative: oklch(75.18% 0.0932 13.59);
+  --color-negative-soft: oklch(30.96% 0.0537 7.89);
+  --color-negative-ink: oklch(17.10% 0.0158 26.01);
+  --color-warning: oklch(78.82% 0.0880 79.72);
+  --color-warning-surface: oklch(26.39% 0.0143 48.16);
+  --color-warning-border: oklch(78.82% 0.0880 79.72 / 45%);
+  --color-focus: oklch(77.24% 0.0620 3.00);
+  --color-overlay: oklch(8% 0.0080 350 / 55%);
+  --color-accent-overlay-border: oklch(96% 0.0060 350 / 30%);
+  --color-accent-overlay-hover: oklch(96% 0.0060 350 / 13%);
+
+  --shadow: 0 18px 55px oklch(8% 0.0080 350 / 42%);
+  --shadow-card: 0 8px 30px oklch(8% 0.0080 350 / 18%);
+  --shadow-dialog: 0 30px 90px oklch(8% 0.0080 350 / 52%);
+  --shadow-menu: 0 18px 55px oklch(8% 0.0080 350 / 45%);
+  --shadow-gothic-inset: inset 0 0 0 1px oklch(75.33% 0.0586 3.33 / 3%);
+}
+
+/* Descriptive aliases keep token consumers readable while preserving the
+ * semantic names above as the stable runtime contract. */
+:root {
+  --paper: var(--color-paper);
+  --paper-2: var(--color-paper-2);
+  --paper-3: var(--color-paper-3);
+  --ink: var(--color-ink);
+  --ink-2: var(--color-ink-2);
+  --muted: var(--color-muted);
+  --neutral: var(--color-neutral);
+  --rule: var(--color-rule);
+  --rule-2: var(--color-rule-2);
+  --focus-ring: var(--color-focus);
+}

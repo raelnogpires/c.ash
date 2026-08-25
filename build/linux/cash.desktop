@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=[c]ash
+Comment=Controle financeiro pessoal local
+Exec=cash
+Icon=cash
+Categories=Office;Finance;
+Terminal=false

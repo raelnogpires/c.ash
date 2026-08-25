@@ -57,10 +57,33 @@ SQLite é a fonte principal. Dinheiro é armazenado como unidades inteiras da
 menor fração da moeda; no MVP, centavos de BRL. Escritas que afetam mais de um
 registro usam transações atômicas.
 
+Transferências são uma única movimentação com `account_id` de origem e
+`destination_account_id` de destino. O serviço valida as duas contas e simula
+todos os saldos antes de confirmar a escrita; assim não existe uma metade da
+transferência persistida. Consultas de saldo aplicam o débito na origem e o
+crédito no destino, enquanto receitas e despesas mensais ignoram esse tipo.
+
+Movimentações usam exclusão lógica por `deleted_at`. As consultas ativas,
+saldos e dashboard omitem registros removidos, mas os dados permanecem no banco
+para restauração. Cada criação, edição, remoção e restauração também grava uma
+fotografia JSON em `transaction_revisions`. Esse histórico é de auditoria e
+ainda não possui tela própria.
+
 O banco possui uma versão de esquema independente da versão do aplicativo.
 Migrações são automáticas, ordenadas e testadas. Antes de uma migração
 irreversível, o aplicativo cria um backup. Versões novas abrem bancos antigos
 por migração; não há promessa de que versões antigas abram bancos mais novos.
+
+A migração `002_transactions` recria de forma transacional as restrições de
+contas e movimentações, preserva as linhas existentes, acrescenta Poupança,
+transferências, timestamps de atualização, exclusão lógica e revisões, e inclui
+novas categorias sem substituir IDs ou rótulos já instalados.
+
+A migração `003_fixed_expenses` adiciona a preferência local de ocultar saldos,
+as regras de despesas fixas e suas ocorrências mensais. A confirmação de uma
+ocorrência e a criação da movimentação vinculada acontecem na mesma transação
+SQLite; um índice parcial impede duas movimentações ativas para a mesma
+ocorrência.
 
 Na inicialização, o aplicativo verifica bloqueio de instância e integridade do
 banco. Falhas nunca devem deixar uma operação parcialmente aplicada.
@@ -112,10 +135,13 @@ integração contínua executará testes, `go vet`, builds de validação e veri
 do frontend. A matriz completa de empacotamento pode ficar restrita a versões
 candidatas.
 
-O projeto usa versionamento semântico a partir de `0.1.0`. Atualizações não são
-silenciosas: no projeto pessoal, a verificação será manual ou um aviso discreto.
-Cada sistema receberá empacotamento apropriado quando a distribuição for
-implementada.
+O projeto usa versionamento semântico a partir de `0.1.0`. Builds estáveis
+consultam diariamente o GitHub Releases e exibem um aviso discreto; o download
+e a instalação só ocorrem após confirmação explícita. O atualizador baixa
+artefatos compilados, valida o digest SHA-256 publicado pelo GitHub e nunca usa
+`git pull` ou ferramentas de desenvolvimento na máquina do usuário. Windows
+usa um instalador NSIS por usuário; Ubuntu, Mint e Debian usam `.deb`, com os
+runtimes GTK/WebKitGTK declarados como dependências do sistema.
 
 ## Dependências de design obrigatórias
 

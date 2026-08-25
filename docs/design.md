@@ -10,6 +10,14 @@ A marca exibida é `[c]ash`; `c.ash` permanece como identificador técnico. A
 interface usa linguagem cotidiana. Conceitos contábeis podem existir no domínio,
 mas não são pré-requisito para entender uma tela.
 
+Inter Variable é embutida no aplicativo e atende títulos, corpo e valores. A
+hierarquia usa pesos e escala em vez de alternar entre famílias serifadas e sem
+serifa; valores financeiros usam algarismos tabulares.
+
+Lucide é a única família de ícones da interface. Setas, visibilidade, navegação,
+privacidade e estados vazios usam glifos semânticos consistentes, sempre com
+rótulo acessível quando fazem parte de um controle.
+
 ## Navegação e densidade
 
 Uma barra lateral recolhível reúne:
@@ -25,6 +33,10 @@ Uma barra lateral recolhível reúne:
 A densidade é intermediária: informações essenciais ficam visíveis, enquanto
 detalhes avançados aparecem sob demanda. A aplicação funciona de uma largura
 mínima documentada até tela cheia, sem precisar simular uma interface móvel.
+
+Cada tela apresenta um único título principal. Cabeçalhos internos só aparecem
+quando acrescentam contexto; o destino ativo não é repetido em eyebrow, card ou
+rodapé.
 
 ## Temas
 

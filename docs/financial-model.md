@@ -6,17 +6,24 @@ O modelo é baseado em contas reais. Uma movimentação altera uma conta; uma
 transferência move dinheiro entre contas próprias sem virar receita ou despesa.
 Totais derivados são sempre recalculáveis a partir dos registros persistidos.
 
-O MVP oferece quatro tipos de conta:
+Esta fatia oferece três tipos de conta:
 
 - conta corrente;
 - carteira ou dinheiro;
-- poupança;
-- cartão de crédito.
+- poupança.
+
+Cartão de crédito continua fora do modelo executável até que fechamento,
+vencimento e pagamento de fatura tenham regras próprias.
 
 Conta corrente e carteira podem ficar negativas, com alerta. Cada conta começa
 com um saldo inicial datado. Diferenças posteriores são corrigidas por um ajuste
 de saldo explícito, com motivo e histórico, nunca pela edição silenciosa do
 saldo calculado.
+
+Poupança pode receber receitas, pagar despesas e participar de transferências,
+mas nenhuma criação, edição, remoção ou restauração pode deixar seu saldo
+calculado negativo. A operação inteira falha sem alterar o livro quando essa
+invariante seria quebrada.
 
 ## Movimentações
 
@@ -43,6 +50,17 @@ Editar uma transação antiga recalcula saldos, orçamentos, faturas e metas
 afetados. Alterações relevantes ficam no histórico. Exclusões são recuperáveis
 pela lixeira.
 
+Na representação atual, uma transferência é um registro atômico com conta de
+origem e conta de destino distintas. A data deve ser igual ou posterior à
+abertura das duas contas. Ela debita a origem, credita o destino pelo mesmo
+valor e não altera receitas, despesas ou o saldo total. Transferências não têm
+categoria; uma descrição vazia vira `Transferência para {destino}`.
+
+Editar substitui os campos financeiros do mesmo registro e grava uma revisão.
+Remover preenche `deleted_at`, também com revisão, e retira a movimentação de
+saldos e indicadores. Restaurar limpa `deleted_at` somente após revalidar todas
+as invariantes, inclusive o saldo de Poupança.
+
 ## Cartões e faturas
 
 Cartões possuem limite, data de fechamento, vencimento, compras e faturas. Uma
@@ -61,6 +79,21 @@ ajusta a previsão antes que ela afete os valores realizados. Contas variáveis
 podem sugerir o último valor ou uma média, sem lançamento automático.
 
 O sistema distingue valores previstos e realizados em telas, filtros e totais.
+
+### Despesas fixas mensais
+
+Uma despesa fixa é uma regra recorrente com descrição, valor estimado, dia de
+vencimento, conta de pagamento e categoria de despesa. A regra gera uma
+ocorrência por mês, inclusive quando o vencimento é 29, 30 ou 31: nesses casos,
+em meses mais curtos a data é o último dia do mês.
+
+Ocorrências são previsões e não alteram o saldo realizado. Enquanto estiverem
+pendentes e vencerem até o fim do mês corrente, são descontadas apenas do
+**disponível após despesas fixas**. Ao confirmar, o usuário informa valor e
+data reais; a aplicação cria uma despesa comum vinculada à ocorrência, marca a
+previsão como confirmada e passa a alterar o saldo realizado uma única vez.
+Uma ocorrência também pode ser dispensada e reaberta. Arquivar uma regra impede
+novas ocorrências, preservando todo o histórico já gerado.
 
 ## Categorias e orçamento
 

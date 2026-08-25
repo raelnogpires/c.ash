@@ -1,0 +1,306 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { api as defaultAPI } from './api'
+import { AccountActions, Button, EmptyState, Icon, TransactionList, type IconName } from './components'
+import { AccountForm, ConfirmFixedExpenseDialog, DeleteAccountDialog, FixedExpenseForm, Onboarding, TransactionDialog } from './forms'
+import { formatBRL, formatDate, today } from './format'
+import type { Account, AccountInput, Bank, BankStatementImportResult, BankStatementInput, BootstrapData, ConfirmFixedExpenseOccurrenceInput, FixedExpense, FixedExpenseInput, FixedExpenseOccurrence, FixedExpensesOverview, OnboardingInput, Theme, Transaction, TransactionInput, UpdateStatus } from './types'
+import { EventsOn } from './wailsjs/runtime/runtime'
+
+type View = 'dashboard' | 'accounts' | 'transactions' | 'fixedExpenses' | 'settings'
+type API = typeof defaultAPI
+
+const systemTheme = (): Theme => window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)
+
+export default function App({ api = defaultAPI }: { api?: API }) {
+  const [data, setData] = useState<BootstrapData | null>(null)
+  const [view, setView] = useState<View>('dashboard')
+  const [error, setError] = useState('')
+  const [transactionDialog, setTransactionDialog] = useState<{ initial?: Transaction } | null>(null)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [fixedOverview, setFixedOverview] = useState<FixedExpensesOverview | null>(null)
+  const [transactionSnackbar, setTransactionSnackbar] = useState<{ transaction: Transaction } | null>(null)
+  const [dismissedOccurrence, setDismissedOccurrence] = useState<FixedExpenseOccurrence | null>(null)
+  const [fallbackTheme, setFallbackTheme] = useState<Theme>(systemTheme)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null)
+  const [updateDialog, setUpdateDialog] = useState(false)
+  const [updateDismissed, setUpdateDismissed] = useState(false)
+  const dialogTrigger = useRef<HTMLElement | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setError('')
+      setData(await api.Bootstrap())
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }, [api])
+  const loadFixedExpenses = useCallback(async () => {
+    try {
+      setFixedOverview(await api.FixedExpensesOverview())
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }, [api])
+
+  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void api.GetUpdateStatus().then(setUpdateStatus).catch(() => undefined)
+    const runtime = (window as typeof window & { runtime?: { EventsOn?: unknown } }).runtime
+    if (!runtime?.EventsOn) return
+    return EventsOn('update:status', (status: UpdateStatus) => setUpdateStatus(status))
+  }, [api])
+  useEffect(() => {
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)')
+    if (!media) return
+    const update = () => setFallbackTheme(media.matches ? 'dark' : 'light')
+    media.addEventListener?.('change', update)
+    return () => media.removeEventListener?.('change', update)
+  }, [])
+  useEffect(() => {
+    if (view === 'transactions' && data?.setup) api.ListTransactions().then(setTransactions).catch(err => setError(errorMessage(err)))
+    if (view === 'fixedExpenses' && data?.setup) void loadFixedExpenses()
+  }, [api, data?.setup, loadFixedExpenses, view])
+  useEffect(() => { if (data?.setup) window.scrollTo(0, 0) }, [data?.setup])
+  useEffect(() => {
+    if (!transactionSnackbar) return
+    const timeout = window.setTimeout(() => setTransactionSnackbar(null), 8000)
+    return () => window.clearTimeout(timeout)
+  }, [transactionSnackbar])
+  useEffect(() => {
+    if (!dismissedOccurrence) return
+    const timeout = window.setTimeout(() => setDismissedOccurrence(null), 8000)
+    return () => window.clearTimeout(timeout)
+  }, [dismissedOccurrence])
+
+  const theme = data?.theme || fallbackTheme
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.documentElement.style.colorScheme = theme === 'light' ? 'light' : 'dark'
+  }, [theme])
+
+  const closeTransaction = useCallback(() => {
+    setTransactionDialog(null)
+    requestAnimationFrame(() => dialogTrigger.current?.focus())
+  }, [])
+  const openTransaction = useCallback((initial?: Transaction, trigger?: HTMLElement) => {
+    dialogTrigger.current = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
+    setTransactionDialog({ initial })
+  }, [])
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'n') {
+        event.preventDefault()
+        if (data?.accounts.length) openTransaction()
+      }
+    }
+    window.addEventListener('keydown', listener)
+    return () => window.removeEventListener('keydown', listener)
+  }, [data, openTransaction])
+
+  if (!data && !error) return <main className="loading" aria-live="polite"><div className="brand"><span>[c]</span>ash</div><p>Preparando seu espaço…</p></main>
+  if (!data) return <main className="fatal"><div className="brand"><span>[c]</span>ash</div><h1>Não conseguimos abrir seus dados</h1><p role="alert">{error}</p><Button onClick={() => void load()}>Tentar novamente</Button></main>
+  if (!data.setup) return <Onboarding initialTheme={theme} onComplete={async (input: OnboardingInput) => { await api.CompleteOnboarding(input); await load() }} onSkip={async () => { await api.SkipOnboarding(); await load() }}/>
+
+  const createAccount = async (input: AccountInput) => { await api.CreateAccount(input); await load() }
+  const updateAccount = async (id: string, input: AccountInput) => { await api.UpdateAccount(id, input); await load() }
+  const deleteAccount = async (id: string) => { await api.DeleteAccount(id); await load() }
+  const refreshTransactions = async () => { await load(); if (view === 'transactions') setTransactions(await api.ListTransactions()) }
+  const refreshFixedExpenses = async () => { await load(); await loadFixedExpenses() }
+  const saveTransaction = async (input: TransactionInput) => { if (transactionDialog?.initial) await api.UpdateTransaction(transactionDialog.initial.id, input); else await api.CreateTransaction(input); await refreshTransactions() }
+  const importBankStatement = async (input: BankStatementInput) => { const result = await api.ImportBankStatement(input); await refreshTransactions(); return result }
+  const removeTransaction = async (tx: Transaction, trigger: HTMLElement) => {
+    const row = trigger.closest('li')
+    const focusTarget = row?.nextElementSibling?.querySelector<HTMLElement>('.icon-button')
+      ?? row?.previousElementSibling?.querySelector<HTMLElement>('.icon-button')
+      ?? document.querySelector<HTMLElement>('.topbar .button')
+    const before = data, beforeList = transactions
+    setTransactionSnackbar({ transaction: tx })
+    setTransactions(items => items.filter(item => item.id !== tx.id))
+    setData(current => current ? { ...current, dashboard: { ...current.dashboard, recentTransactions: current.dashboard.recentTransactions.filter(item => item.id !== tx.id) } } : current)
+    requestAnimationFrame(() => focusTarget?.focus())
+    try { await api.TrashTransaction(tx.id); await refreshTransactions(); if (view === 'fixedExpenses') await loadFixedExpenses() }
+    catch (err) { setData(before); setTransactions(beforeList); setTransactionSnackbar(null); setError(errorMessage(err)) }
+  }
+  const undoRemoval = async () => {
+    if (!transactionSnackbar) return
+    const tx = transactionSnackbar.transaction
+    setTransactionSnackbar(null)
+    try { await api.RestoreTransaction(tx.id); await refreshTransactions(); if (view === 'fixedExpenses') await loadFixedExpenses() }
+    catch (err) { setError(errorMessage(err)) }
+  }
+  const setBalancesHidden = async (hidden: boolean) => {
+    const before = data
+    setData(current => current ? { ...current, profile: current.profile ? { ...current.profile, balancesHidden: hidden } : current.profile } : current)
+    try {
+	      const profile = await api.SetBalancesHidden(hidden)
+	      setData(current => current ? { ...current, profile: { ...profile, balancesHidden: profile.balancesHidden ?? hidden } } : current)
+    } catch (err) {
+      setData(before)
+      setError(errorMessage(err))
+    }
+  }
+  const saveFixedExpense = async (input: FixedExpenseInput, initial?: FixedExpense) => {
+    if (initial) await api.UpdateFixedExpense(initial.id, input)
+    else await api.CreateFixedExpense(input)
+    await refreshFixedExpenses()
+  }
+  const confirmFixedOccurrence = async (occurrence: FixedExpenseOccurrence, input: ConfirmFixedExpenseOccurrenceInput) => {
+    await api.ConfirmFixedExpenseOccurrence(occurrence.id, input)
+    await refreshFixedExpenses()
+  }
+  const dismissFixedOccurrence = async (occurrence: FixedExpenseOccurrence) => {
+    await api.DismissFixedExpenseOccurrence(occurrence.id)
+    setDismissedOccurrence(occurrence)
+    await refreshFixedExpenses()
+  }
+  const undoDismissFixedOccurrence = async () => {
+    if (!dismissedOccurrence) return
+    const occurrence = dismissedOccurrence
+    setDismissedOccurrence(null)
+    try { await api.ReopenFixedExpenseOccurrence(occurrence.id); await refreshFixedExpenses() }
+    catch (err) { setError(errorMessage(err)) }
+  }
+  const checkForUpdates = async () => {
+    try { setUpdateStatus(await api.CheckForUpdates()) }
+    catch (err) { setError(errorMessage(err)) }
+  }
+  const installUpdate = async () => {
+    try { setUpdateStatus(await api.InstallUpdate()) }
+    catch (err) { setError(errorMessage(err)); throw err }
+  }
+
+  const nav: { id: View; label: string; icon: IconName }[] = [
+    { id: 'dashboard', label: 'Visão geral', icon: 'house' }, { id: 'accounts', label: 'Contas', icon: 'wallet' },
+    { id: 'transactions', label: 'Movimentações', icon: 'list' }, { id: 'fixedExpenses', label: 'Despesas fixas', icon: 'calendarClock' },
+    { id: 'settings', label: 'Configurações', icon: 'palette' },
+  ]
+  const balancesHidden = data.profile?.balancesHidden ?? false
+  const sidebarToggleLabel = sidebarCollapsed ? 'Expandir navegação' : 'Recolher navegação'
+  return <div className={`shell${sidebarCollapsed ? ' shell--collapsed' : ''}`}>
+    <aside className={`sidebar${sidebarCollapsed ? ' sidebar--collapsed' : ''}`}><div className="sidebar__header"><div className="brand"><span>[c]</span>ash</div><button type="button" className="sidebar__toggle" aria-label={sidebarToggleLabel} aria-expanded={!sidebarCollapsed} aria-controls="primary-navigation" title={sidebarToggleLabel} onClick={() => setSidebarCollapsed(collapsed => !collapsed)}><Icon name={sidebarCollapsed ? 'panelLeftOpen' : 'panelLeftClose'}/></button></div><nav id="primary-navigation" className="sidebar__nav" aria-label="Principal">{nav.map(item => <button key={item.id} className={view === item.id ? 'active' : ''} aria-label={item.label} title={sidebarCollapsed ? item.label : undefined} aria-current={view === item.id ? 'page' : undefined} onClick={() => setView(item.id)}><Icon name={item.icon}/><span>{item.label}</span></button>)}</nav><div className="sidebar__footer"><span className="avatar" aria-hidden="true">{data.profile?.displayName?.[0]?.toUpperCase() || 'C'}</span><span><strong>{data.profile?.displayName || 'Meu espaço'}</strong><small>Dados locais</small></span></div></aside>
+    <main className="workspace"><header className="topbar"><div>{view === 'dashboard' && <p className="eyebrow">Hoje</p>}<h1>{view === 'dashboard' ? `Olá${data.profile?.displayName ? `, ${data.profile.displayName}` : ''}` : nav.find(n => n.id === view)?.label}</h1></div><Button onClick={event => openTransaction(undefined, event.currentTarget)} disabled={!data.accounts.length} title={!data.accounts.length ? 'Crie uma conta primeiro' : 'Atalho: Ctrl+N'}><Icon name="plus"/> Nova movimentação</Button></header>
+      {error && <div className="alert" role="alert">{error}<button onClick={() => setError('')} aria-label="Fechar aviso"><Icon name="close"/></button></div>}
+      {data.setup && updateStatus?.state === 'available' && !updateDismissed && <section className="update-banner" role="status" aria-label="Atualização disponível"><div><strong>Uma atualização está disponível</strong><span>Versão {updateStatus.availableVersion}</span></div><div><Button kind="secondary" onClick={() => setUpdateDialog(true)}>Ver novidades</Button><button className="text-button muted" onClick={() => setUpdateDismissed(true)}>Depois</button></div></section>}
+      {view === 'dashboard' && <DashboardView data={data} balancesHidden={balancesHidden} onBalancesHiddenChange={setBalancesHidden} onAccounts={() => setView('accounts')} onTransactions={() => setView('transactions')} onTransaction={() => openTransaction()} onEdit={openTransaction} onRemove={removeTransaction}/>} 
+      {view === 'accounts' && <AccountsView data={data} create={createAccount} update={updateAccount} remove={deleteAccount}/>} 
+      {view === 'transactions' && <TransactionsView data={data} transactions={transactions} open={() => openTransaction()} onImport={importBankStatement} onEdit={openTransaction} onRemove={removeTransaction}/>} 
+      {view === 'fixedExpenses' && <FixedExpensesView data={data} overview={fixedOverview} create={input => saveFixedExpense(input)} update={(expense, input) => saveFixedExpense(input, expense)} archive={async id => { await api.ArchiveFixedExpense(id); await refreshFixedExpenses() }} restore={async id => { await api.RestoreFixedExpense(id); await refreshFixedExpenses() }} confirm={confirmFixedOccurrence} dismiss={dismissFixedOccurrence}/>} 
+      {view === 'settings' && <SettingsView theme={theme} updateStatus={updateStatus} setTheme={async value => { try { await api.SetTheme(value); await load() } catch (err) { setError(errorMessage(err)) } }} onCheckUpdates={checkForUpdates} onShowUpdate={() => setUpdateDialog(true)}/>} 
+    </main>
+    {transactionDialog && <TransactionDialog accounts={data.accounts} categories={data.categories} initial={transactionDialog.initial} onClose={closeTransaction} onSubmit={saveTransaction}/>} 
+    {transactionSnackbar && <div className="snackbar" role="status"><span>Movimentação removida</span><button onClick={() => void undoRemoval()}>Desfazer</button></div>}
+    {dismissedOccurrence && <div className="snackbar" role="status"><span>Previsão dispensada</span><button onClick={() => void undoDismissFixedOccurrence()}>Desfazer</button></div>}
+    {updateDialog && updateStatus && ['available', 'downloading', 'installing', 'error'].includes(updateStatus.state) && <UpdateDialog status={updateStatus} onClose={() => setUpdateDialog(false)} onInstall={installUpdate}/>} 
+  </div>
+}
+
+function DashboardView({ data, balancesHidden, onBalancesHiddenChange, onAccounts, onTransactions, onTransaction, onEdit, onRemove }: { data: BootstrapData; balancesHidden: boolean; onBalancesHiddenChange(hidden: boolean): void; onAccounts(): void; onTransactions(): void; onTransaction(): void; onEdit(tx: Transaction, trigger: HTMLElement): void; onRemove(tx: Transaction, trigger: HTMLElement): void }) {
+  const d = data.dashboard, total = d.totalBalanceCents ?? d.availableBalanceCents, pending = d.pendingFixedExpensesCents ?? 0, pendingCount = d.pendingFixedExpenseCount ?? 0
+  return <div className="page dashboard-page"><section className={`balance-hero stat-led-hero ${d.hasNegativeBalance ? 'negative' : ''}`} aria-labelledby="available-balance-label"><div className="balance-hero__content"><p className="balance-hero__label" id="available-balance-label"><span>Disponível após despesas fixas</span><button className="balance-visibility" type="button" aria-label={balancesHidden ? 'Mostrar saldos' : 'Ocultar saldos'} aria-pressed={balancesHidden} title={balancesHidden ? 'Mostrar saldos' : 'Ocultar saldos'} onClick={() => onBalancesHiddenChange(!balancesHidden)}><Icon name={balancesHidden ? 'eyeOff' : 'eye'}/></button></p><strong className="balance-hero__value" aria-label={balancesHidden ? 'Saldo oculto' : undefined}>{balancesHidden ? '••••••' : formatBRL(d.availableBalanceCents)}</strong></div><div className="balance-hero__meta" aria-label="Contexto do saldo disponível"><div className="balance-hero__meta-row"><span>{pendingCount ? `${pendingCount} compromisso${pendingCount === 1 ? '' : 's'} pendente${pendingCount === 1 ? '' : 's'}` : 'Compromissos pendentes'}</span><strong>{balancesHidden ? 'Oculto' : pendingCount ? formatBRL(pending) : 'Nenhum'}</strong></div><div className="balance-hero__meta-row"><span>Saldo total</span><strong>{balancesHidden ? 'Oculto' : formatBRL(total)}</strong></div></div></section>
+    {d.hasNegativeBalance && <div className="warning" role="status"><Icon name="warning"/><span><strong>Seu saldo está negativo.</strong> Revise os registros e evite novos compromissos até regularizar.</span></div>}
+    <section className="metrics metrics--supporting" aria-label="Resumo do mês"><article><span className="metric-icon income" aria-hidden="true"><Icon name="arrowUpRight"/></span><div><p>Receitas no mês</p><strong>+ {formatBRL(d.monthlyIncomeCents)}</strong></div></article><article><span className="metric-icon expense" aria-hidden="true"><Icon name="arrowDownRight"/></span><div><p>Despesas no mês</p><strong>− {formatBRL(d.monthlyExpenseCents)}</strong></div></article><article><span className="metric-icon neutral" aria-hidden="true"><Icon name="equal"/></span><div><p>Resultado do mês</p><strong>{formatBRL(d.monthlyIncomeCents - d.monthlyExpenseCents)}</strong></div></article></section>
+    <section className="dashboard-analysis" aria-label="Evolução e distribuição dos saldos"><BalanceTrendChart points={d.balanceHistory ?? []} hidden={balancesHidden}/><AccountAllocationChart allocations={d.accountAllocations ?? []} hidden={balancesHidden}/></section>
+    <section className="card"><div className="card__heading"><div><h2>Atividade recente</h2></div>{d.recentTransactions.length > 0 && <button className="text-button" onClick={onTransactions}>Ver todas <Icon name="chevronRight"/></button>}</div><TransactionList transactions={d.recentTransactions} onEdit={onEdit} onRemove={onRemove} empty={<EmptyState icon={data.accounts.length ? 'receipt' : 'walletMinimal'} title={data.accounts.length ? 'Seu histórico começa aqui' : 'Crie sua primeira conta'} action={<Button onClick={data.accounts.length ? onTransaction : onAccounts}>{data.accounts.length ? 'Registrar movimentação' : 'Criar conta'}</Button>}>{data.accounts.length ? 'Registre uma receita, despesa ou transferência para acompanhar seu mês.' : 'Adicione onde você guarda dinheiro para começar a organizar.'}</EmptyState>}/></section></div>
+}
+
+function BalanceTrendChart({ points, hidden }: { points: NonNullable<BootstrapData['dashboard']['balanceHistory']>; hidden: boolean }) {
+  if (hidden) return <section className="card analysis-card analysis-card--hidden" aria-label="Evolução do saldo"><div><h2>Evolução do saldo</h2></div><p role="status">Saldos ocultos</p></section>
+  if (!points.length) return <section className="card analysis-card"><div><h2>Evolução do saldo</h2></div><p className="analysis-empty">Registre movimentações para acompanhar sua evolução.</p></section>
+  const values = points.map(point => point.balanceCents), min = Math.min(...values), max = Math.max(...values), range = Math.max(max - min, 1)
+  const positions = points.map((point, index) => ({ ...point, x: 24 + (512 * index) / Math.max(points.length - 1, 1), y: 24 + (112 * (max - point.balanceCents)) / range }))
+  const path = positions.map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')
+  return <section className="card analysis-card"><div className="card__heading"><div><h2>Evolução do saldo</h2></div><span className="analysis-total">{formatBRL(points.at(-1)?.balanceCents ?? 0)}</span></div><figure className="trend-chart"><svg viewBox="0 0 560 180" role="img" aria-labelledby="trend-title trend-description"><title id="trend-title">Evolução do saldo total nos últimos sete meses</title><desc id="trend-description">O saldo mais recente é {formatBRL(points.at(-1)?.balanceCents ?? 0)}.</desc><path className="trend-chart__baseline" d="M24 140H536"/><path className="trend-chart__line" d={path}/>{positions.map(point => <circle key={point.month} className="trend-chart__point" cx={point.x} cy={point.y} r="4"><title>{formatMonth(point.month)}: {formatBRL(point.balanceCents)}</title></circle>)}</svg><figcaption>{points.map(point => <span key={point.month}>{formatMonth(point.month)}</span>)}</figcaption></figure><ul className="sr-only">{points.map(point => <li key={point.month}>{formatMonth(point.month)}: {formatBRL(point.balanceCents)}</li>)}</ul></section>
+}
+
+function AccountAllocationChart({ allocations, hidden }: { allocations: NonNullable<BootstrapData['dashboard']['accountAllocations']>; hidden: boolean }) {
+  if (hidden) return <section className="card allocation-card analysis-card--hidden" aria-label="Saldos por conta"><div><h2>Onde está seu dinheiro</h2></div><p role="status">Saldos ocultos</p></section>
+  if (!allocations.length) return <section className="card allocation-card"><div><h2>Onde está seu dinheiro</h2></div><p className="analysis-empty">Suas contas aparecerão aqui.</p></section>
+  const largest = Math.max(...allocations.map(item => Math.abs(item.balanceCents)), 1)
+  return <section className="card allocation-card"><div><h2>Onde está seu dinheiro</h2></div><ul className="allocation-list">{allocations.map(item => <li key={item.accountId}><div><span>{item.accountName}</span><strong>{formatBRL(item.balanceCents)}</strong></div><span className={`allocation-bar ${item.balanceCents < 0 ? 'negative' : ''}`} aria-hidden="true"><i style={{ width: `${Math.max((Math.abs(item.balanceCents) / largest) * 100, 3)}%` }}/></span></li>)}</ul></section>
+}
+
+function formatMonth(month: string) { return ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'][Number(month.slice(5, 7)) - 1] ?? month }
+
+function AccountsView({ data, create, update, remove }: { data: BootstrapData; create(input: AccountInput): Promise<void>; update(id: string, input: AccountInput): Promise<void>; remove(id: string): Promise<void> }) {
+  const [creating, setCreating] = useState(data.accounts.length === 0), [editing, setEditing] = useState<Account | undefined>(), [deleting, setDeleting] = useState<Account | undefined>()
+  const actionTrigger = useRef<HTMLElement | null>(null), addTrigger = useRef<HTMLButtonElement>(null)
+  const closeEditor = () => { setCreating(false); setEditing(undefined); requestAnimationFrame(() => actionTrigger.current?.focus()) }
+  const closeDelete = () => { setDeleting(undefined); requestAnimationFrame(() => actionTrigger.current?.focus()) }
+  return <div className="page page--split"><section><div className="section-heading"><p className="section-summary">{data.accounts.length ? `${data.accounts.length} ${data.accounts.length === 1 ? 'conta cadastrada' : 'contas cadastradas'}` : 'Nenhuma conta cadastrada'}</p>{!creating && !editing && <Button ref={addTrigger} kind="secondary" onClick={() => { setCreating(true); setEditing(undefined) }}><Icon name="plus"/> Adicionar</Button>}</div>{data.accounts.length ? <div className="account-grid">{data.accounts.map(account => <article className="account-card" key={account.id}><AccountActions account={account} onEdit={(item, trigger) => { actionTrigger.current = trigger; setCreating(false); setEditing(item) }} onRemove={(item, trigger) => { actionTrigger.current = trigger; setDeleting(item) }}/><span>{account.type === 'checking' ? 'Conta corrente' : account.type === 'savings' ? 'Poupança' : 'Dinheiro'}</span><h3>{account.name}</h3><strong>{formatBRL(account.currentBalanceCents)}</strong><small>Saldo calculado</small></article>)}</div> : !creating && <EmptyState icon="walletMinimal" title="Nenhuma conta ainda" action={<Button onClick={() => setCreating(true)}>Criar conta</Button>}>Crie sua primeira conta para registrar movimentações.</EmptyState>}</section>{(creating || editing) && <AccountForm key={editing?.id ?? 'new'} initial={editing} onSubmit={async input => { if (editing) await update(editing.id, input); else await create(input); closeEditor() }} onCancel={data.accounts.length ? closeEditor : undefined}/>} {deleting && <DeleteAccountDialog account={deleting} onClose={closeDelete} onConfirm={async () => { await remove(deleting.id); setDeleting(undefined); requestAnimationFrame(() => addTrigger.current?.focus()) }}/>}</div>
+}
+
+function TransactionsView({ data, transactions, open, onImport, onEdit, onRemove }: { data: BootstrapData; transactions: Transaction[]; open(): void; onImport(input: BankStatementInput): Promise<BankStatementImportResult>; onEdit(tx: Transaction, trigger: HTMLElement): void; onRemove(tx: Transaction, trigger: HTMLElement): void }) {
+  const [showImport, setShowImport] = useState(false), [accountId, setAccountId] = useState(data.accounts[0]?.id ?? ''), [bank, setBank] = useState<Bank>('itau'), [file, setFile] = useState<File | null>(null), [importing, setImporting] = useState(false), [message, setMessage] = useState(''), [importError, setImportError] = useState('')
+  const fileInput = useRef<HTMLInputElement>(null)
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setImportError('')
+    setMessage('')
+    if (!file) { setImportError('Escolha um arquivo PDF.'); fileInput.current?.focus(); return }
+    if (file.size > 15 * 1024 * 1024) { setImportError('O PDF deve ter no máximo 15 MB.'); return }
+    setImporting(true)
+    try {
+      const result = await onImport({ accountId, bank, fileName: file.name, base64Pdf: await fileAsBase64(file) })
+      const parts = [`${result.importedCount} ${result.importedCount === 1 ? 'movimentação adicionada' : 'movimentações adicionadas'}`]
+      if (result.duplicateCount) parts.push(`${result.duplicateCount} ${result.duplicateCount === 1 ? 'repetida ignorada' : 'repetidas ignoradas'}`)
+      if (result.ignoredCount) parts.push(`${result.ignoredCount} com data inválida ou futura`)
+      setMessage(parts.join(' · '))
+      setFile(null)
+      if (fileInput.current) fileInput.current.value = ''
+    } catch (err) {
+      setImportError(errorMessage(err))
+    } finally {
+      setImporting(false)
+    }
+  }
+  return <div className="page transactions-page">
+    <section className="statement-toolbar"><div><strong>Extratos bancários</strong><span>Importe um PDF por mês; registros já importados não serão duplicados.</span></div><Button kind="secondary" onClick={() => { setShowImport(value => !value); setMessage(''); setImportError('') }}>{showImport ? 'Fechar importação' : 'Importar extrato PDF'}</Button></section>
+    {showImport && <section className="card statement-import" aria-labelledby="statement-import-title"><div className="card__heading"><div><h2 id="statement-import-title">Importar extrato</h2><p>Compatível com PDFs de conta do Itaú, Bradesco e Inter.</p></div></div><form onSubmit={submit}><label className="field"><span>Conta</span><select value={accountId} onChange={event => setAccountId(event.target.value)} required>{data.accounts.map(account => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label><label className="field"><span>Banco</span><select value={bank} onChange={event => setBank(event.target.value as Bank)}><option value="itau">Itaú</option><option value="bradesco">Bradesco</option><option value="inter">Inter</option></select></label><label className="field statement-file" htmlFor="statement-pdf"><span>Arquivo PDF</span><input id="statement-pdf" ref={fileInput} type="file" accept="application/pdf,.pdf" onChange={event => setFile(event.target.files?.[0] ?? null)}/><small>Até 15 MB. O arquivo é processado somente neste dispositivo.</small></label><Button type="submit" disabled={!accountId}>Importar movimentações</Button></form>{importError && <p className="statement-result statement-result--error" role="alert">{importError}</p>}{message && <p className="statement-result" role="status">{message}</p>}</section>}
+    <section className="card"><TransactionList transactions={transactions} onEdit={onEdit} onRemove={onRemove} empty={<EmptyState icon="receipt" title="Nenhuma movimentação" action={data.accounts.length ? <Button onClick={open}>Registrar agora</Button> : undefined}>Receitas, despesas e transferências aparecerão aqui em ordem de data.</EmptyState>}/></section>
+    {importing && <div className="statement-loading" role="status" aria-live="assertive" aria-label="Importando extrato"><span className="statement-loading__spinner" aria-hidden="true"/><strong>Importando seu extrato…</strong><p>Estamos lendo e organizando as movimentações. Não feche o aplicativo.</p></div>}
+  </div>
+}
+
+function fileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Não foi possível ler o arquivo.'))
+    reader.onload = () => {
+      const value = String(reader.result ?? '')
+      const separator = value.indexOf(',')
+      if (separator < 0) reject(new Error('Não foi possível ler o arquivo.'))
+      else resolve(value.slice(separator + 1))
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+function FixedExpensesView({ data, overview, create, update, archive, restore, confirm, dismiss }: { data: BootstrapData; overview: FixedExpensesOverview | null; create(input: FixedExpenseInput): Promise<void>; update(expense: FixedExpense, input: FixedExpenseInput): Promise<void>; archive(id: string): Promise<void>; restore(id: string): Promise<void>; confirm(occurrence: FixedExpenseOccurrence, input: ConfirmFixedExpenseOccurrenceInput): Promise<void>; dismiss(occurrence: FixedExpenseOccurrence): Promise<void> }) {
+  const [creating, setCreating] = useState(false), [editing, setEditing] = useState<FixedExpense | undefined>(), [confirming, setConfirming] = useState<FixedExpenseOccurrence | undefined>()
+  const confirmTrigger = useRef<HTMLButtonElement | null>(null), addTrigger = useRef<HTMLButtonElement | null>(null)
+  if (!overview) return <div className="page"><section className="card"><p className="analysis-empty" aria-live="polite">Carregando despesas fixas…</p></section></div>
+  const active = overview.expenses.filter(expense => !expense.archivedAt), archived = overview.expenses.filter(expense => expense.archivedAt), pending = overview.occurrences.filter(occurrence => occurrence.status === 'pending'), completed = overview.occurrences.filter(occurrence => occurrence.status !== 'pending' && occurrence.referenceMonth === today().slice(0, 7))
+  const planned = pending.reduce((total, occurrence) => total + occurrence.expectedAmountCents, 0), confirmed = overview.occurrences.filter(occurrence => occurrence.status === 'confirmed' && occurrence.referenceMonth === today().slice(0, 7)).reduce((total, occurrence) => total + occurrence.expectedAmountCents, 0)
+  const closeEditor = () => { setCreating(false); setEditing(undefined) }
+  const closeConfirmation = () => { setConfirming(undefined); requestAnimationFrame(() => (confirmTrigger.current?.isConnected ? confirmTrigger.current : addTrigger.current)?.focus()) }
+  return <div className="page page--split fixed-expenses-page"><section><div className="section-heading">{!creating && !editing && <Button ref={addTrigger} kind="secondary" onClick={() => setCreating(true)}><Icon name="plus"/> Adicionar</Button>}</div><section className="fixed-summary" aria-label="Resumo das despesas fixas"><article><span>Previsões pendentes</span><strong>{formatBRL(planned)}</strong></article><article><span>Confirmadas no mês</span><strong>{formatBRL(confirmed)}</strong></article><article><span>Regras ativas</span><strong>{active.length}</strong></article></section><section className="card fixed-occurrences"><div className="card__heading"><div><h2>O que falta pagar</h2></div></div>{pending.length ? <ul className="fixed-occurrence-list">{pending.map(occurrence => <li key={occurrence.id} className={occurrence.dueDate < today() ? 'overdue' : ''}><div><span className="occurrence-status">{occurrence.dueDate < today() ? 'Atrasada' : `Vence ${formatDate(occurrence.dueDate)}`}</span><strong>{occurrence.description}</strong><small>{occurrence.accountName} · {occurrence.categoryName}</small></div><div><strong>{formatBRL(occurrence.expectedAmountCents)}</strong><span className="occurrence-actions"><button className="text-button" onClick={event => { confirmTrigger.current = event.currentTarget; setConfirming(occurrence) }}><Icon name="check"/> Confirmar</button><button className="text-button muted" onClick={() => void dismiss(occurrence)}>Dispensar</button></span></div></li>)}</ul> : <p className="analysis-empty">Nenhuma despesa fixa pendente agora.</p>}</section>{completed.length > 0 && <section className="card fixed-completed"><div className="card__heading"><div><h2>Já resolvidas</h2></div></div><ul>{completed.map(occurrence => <li key={occurrence.id}><span>{occurrence.description}</span><small>{occurrence.status === 'confirmed' ? 'Confirmada' : 'Dispensada'}</small></li>)}</ul></section>}<section className="card fixed-rules"><div className="card__heading"><div><h2>Seus compromissos</h2></div></div>{active.length ? <ul>{active.map(expense => <li key={expense.id}><div><strong>{expense.description}</strong><small>Dia {expense.dueDay} · {expense.accountName} · {expense.categoryName}</small></div><div><span>{formatBRL(expense.amountCents)}</span><button className="text-button" onClick={() => { setEditing(expense); setCreating(false) }}>Editar</button><button className="text-button muted" onClick={() => void archive(expense.id)}><Icon name="archive"/> Arquivar</button></div></li>)}</ul> : <EmptyState title="Comece pelos compromissos mensais" action={<Button onClick={() => setCreating(true)}>Criar despesa fixa</Button>}>Assinaturas, aluguel e contas entram como previsão até você confirmar o pagamento.</EmptyState>}{archived.length > 0 && <details className="archived-rules"><summary>{archived.length} arquivada{archived.length === 1 ? '' : 's'}</summary><ul>{archived.map(expense => <li key={expense.id}><span>{expense.description}</span><button className="text-button" onClick={() => void restore(expense.id)}>Restaurar</button></li>)}</ul></details>}</section></section>{(creating || editing) && <FixedExpenseForm key={editing?.id ?? 'new'} accounts={data.accounts} categories={data.categories} initial={editing} onSubmit={async input => { if (editing) await update(editing, input); else await create(input); closeEditor() }} onCancel={closeEditor}/>} {confirming && <ConfirmFixedExpenseDialog occurrence={confirming} onClose={closeConfirmation} onSubmit={input => confirm(confirming, input)}/>}</div>
+}
+
+function SettingsView({ theme, updateStatus, setTheme, onCheckUpdates, onShowUpdate }: { theme: Theme; updateStatus: UpdateStatus | null; setTheme(value: Theme): Promise<void>; onCheckUpdates(): Promise<void>; onShowUpdate(): void }) {
+  const checking = updateStatus?.state === 'checking'
+  const label = updateStatus?.state === 'disabled' ? 'Atualizações indisponíveis neste build' : updateStatus?.state === 'available' ? `Versão ${updateStatus.availableVersion} disponível` : updateStatus?.state === 'downloading' ? 'Baixando atualização…' : updateStatus?.state === 'installing' ? 'Preparando instalação…' : updateStatus?.state === 'upToDate' ? 'Você já está usando a versão mais recente' : updateStatus?.message || `Versão ${updateStatus?.currentVersion || 'dev'}`
+  return <div className="page"><section className="card settings-card"><h2>Escolha a atmosfera</h2><p>O conteúdo e a posição dos controles permanecem iguais em todos os temas.</p><fieldset className="settings-themes"><legend className="sr-only">Tema</legend>{(['light', 'dark', 'gothic'] as Theme[]).map(value => <label key={value}><input type="radio" name="settings-theme" value={value} checked={theme === value} onChange={() => void setTheme(value)}/><span className={`settings-swatch settings-swatch--${value}`} aria-hidden="true"><i/><i/></span><strong>{value === 'light' ? 'Claro' : value === 'dark' ? 'Escuro' : 'Gótico'}</strong><small>{value === 'light' ? 'Calmo e luminoso' : value === 'dark' ? 'Confortável à noite' : 'Carvão e vinho'}</small></label>)}</fieldset></section><section className="card update-card"><div><h2>Atualizações</h2><p>{label}</p>{updateStatus?.lastCheckedAt && <small>Última verificação: {formatDateTime(updateStatus.lastCheckedAt)}</small>}</div><div className="update-card__actions">{updateStatus?.state === 'available' && <Button onClick={onShowUpdate}>Atualizar agora</Button>}<Button kind="secondary" loading={checking} onClick={() => void onCheckUpdates()} disabled={updateStatus?.state === 'disabled'}>{checking ? 'Verificando…' : 'Verificar agora'}</Button></div></section></div>
+}
+
+function UpdateDialog({ status, onClose, onInstall }: { status: UpdateStatus; onClose(): void; onInstall(): Promise<void> }) {
+  const [installing, setInstalling] = useState(false)
+  const busy = installing || status.state === 'downloading' || status.state === 'installing'
+  const progress = status.totalBytes ? Math.min(100, Math.round(((status.downloadedBytes ?? 0) / status.totalBytes) * 100)) : 0
+  const install = async () => { setInstalling(true); try { await onInstall() } catch { setInstalling(false) } }
+  const title = status.state === 'error' ? 'Não foi possível atualizar' : `Atualizar para ${status.availableVersion}`
+  return <div className="dialog-backdrop" role="presentation"><section className="dialog update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-title"><div className="dialog__heading"><div><p className="context-label">{status.state === 'error' ? 'Atualização interrompida' : 'Nova versão'}</p><h2 id="update-title">{title}</h2></div><button className="icon-button" onClick={onClose} disabled={busy} aria-label="Fechar"><Icon name="close"/></button></div>{status.state === 'downloading' ? <div className="update-dialog__progress" role="status"><span>Baixando atualização… {progress}%</span><progress value={status.downloadedBytes ?? 0} max={status.totalBytes ?? 1}/></div> : status.state === 'installing' ? <p role="status">Encerrando o aplicativo para instalar a atualização…</p> : status.state === 'error' ? <p role="alert">{status.message || 'A versão anterior foi mantida. Tente novamente mais tarde.'}</p> : <><p>O aplicativo será fechado e reaberto quando a instalação terminar.</p>{status.releaseNotes && <pre className="update-dialog__notes">{status.releaseNotes}</pre>}</>}<div className="dialog__actions"><Button kind="secondary" onClick={onClose} disabled={busy}>{status.state === 'error' ? 'Fechar' : 'Depois'}</Button>{!busy && <Button loading={installing} onClick={() => void install()}>{status.state === 'error' ? 'Tentar novamente' : 'Baixar e instalar'}</Button>}</div></section></div>
+}
+
+function formatDateTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date) }
