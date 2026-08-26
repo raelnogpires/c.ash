@@ -548,6 +548,11 @@ func TestFixedExpenseArchiveRestore_SkipsFullyArchivedMonths(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertFixedExpenseMonths(t, store, []string{"2026-08", "2026-09", "2026-10"})
+	now = time.Date(2026, time.December, 20, 12, 0, 0, 0, time.Local)
+	if err := service.ArchiveFixedExpense(ctx, expense.ID); err != nil {
+		t.Fatal(err)
+	}
+	assertFixedExpenseMonths(t, store, []string{"2026-08", "2026-09", "2026-10"})
 	archivedOccurrences, err := store.FixedExpenseOccurrences(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -580,8 +585,12 @@ func TestFixedExpenseArchiveRestore_SkipsFullyArchivedMonths(t *testing.T) {
 	if _, err := service.FixedExpensesOverview(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Bootstrap(ctx); err != nil {
+	boot, err = service.Bootstrap(ctx)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if boot.Dashboard.TotalBalanceCents != 10000 || boot.Dashboard.PendingFixedExpensesCents != 300 || boot.Dashboard.PendingFixedExpenseCount != 3 || boot.Dashboard.AvailableBalanceCents != 9700 {
+		t.Fatalf("restored dashboard includes archived-gap occurrences: %+v", boot.Dashboard)
 	}
 	if _, err := service.FixedExpensesOverview(ctx); err != nil {
 		t.Fatal(err)

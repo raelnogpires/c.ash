@@ -3,6 +3,7 @@ package domain
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -69,6 +70,17 @@ func TestCalculateDashboardWithFixedExpenses_OnlyPendingDueThisMonthReduceAvaila
 	got := CalculateDashboardWithFixedExpenses(accounts, nil, occurrences, fixedTime())
 	if got.TotalBalanceCents != 10000 || got.PendingFixedExpensesCents != 3700 || got.AvailableBalanceCents != 6300 || got.PendingFixedExpenseCount != 2 {
 		t.Fatalf("dashboard=%+v", got)
+	}
+}
+
+func TestFixedExpenseJSON_OmitsOccurrenceCursor(t *testing.T) {
+	expense := FixedExpense{ID: "fixed", OccurrenceStartAt: "2026-08-10T12:00:00Z"}
+	encoded, err := json.Marshal(expense)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "occurrenceStartAt") || strings.Contains(string(encoded), "2026-08-10T12:00:00Z") {
+		t.Fatalf("internal occurrence cursor leaked into JSON: %s", encoded)
 	}
 }
 
