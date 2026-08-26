@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -495,6 +496,133 @@ func TestFixedExpense_DismissAndEditOnlyFutureRules(t *testing.T) {
 	}
 	if err := service.ReopenFixedExpenseOccurrence(ctx, occurrence.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestFixedExpenseArchiveRestore_SkipsFullyArchivedMonths(t *testing.T) {
+	ctx := context.Background()
+	store, err := storage.Open(ctx, t.TempDir()+"/cash.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	now := time.Date(2026, time.August, 10, 12, 0, 0, 0, time.Local)
+	service := New(store, func() time.Time { return now })
+	if _, err := service.CompleteOnboarding(ctx, OnboardingInput{
+		DisplayName: "Ana",
+		Currency:    "BRL",
+		Theme:       domain.ThemeLight,
+		FirstAccount: AccountInput{
+			Name:                "Principal",
+			Type:                domain.AccountChecking,
+			OpeningDate:         "2026-08-01",
+			OpeningBalanceCents: 10000,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	boot, err := service.Bootstrap(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expense, err := service.CreateFixedExpense(ctx, FixedExpenseInput{
+		Description: "Internet",
+		AmountCents: 100,
+		DueDay:      10,
+		AccountID:   boot.Accounts[0].ID,
+		CategoryID:  "bills",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	initial, err := service.FixedExpensesOverview(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DismissFixedExpenseOccurrence(ctx, initial.Occurrences[0].ID); err != nil {
+		t.Fatal(err)
+	}
+
+	now = time.Date(2026, time.October, 20, 12, 0, 0, 0, time.Local)
+	if err := service.ArchiveFixedExpense(ctx, expense.ID); err != nil {
+		t.Fatal(err)
+	}
+	assertFixedExpenseMonths(t, store, []string{"2026-08", "2026-09", "2026-10"})
+	archivedOccurrences, err := store.FixedExpenseOccurrences(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var augustOccurrence *domain.FixedExpenseOccurrence
+	for index := range archivedOccurrences {
+		if archivedOccurrences[index].ReferenceMonth == "2026-08" {
+			augustOccurrence = &archivedOccurrences[index]
+			break
+		}
+	}
+	if augustOccurrence == nil || augustOccurrence.Status != domain.FixedExpenseDismissed {
+		t.Fatalf("archived occurrence was rewritten: %+v", augustOccurrence)
+	}
+
+	now = time.Date(2027, time.January, 5, 12, 0, 0, 0, time.Local)
+	if err := service.RestoreFixedExpense(ctx, expense.ID); err != nil {
+		t.Fatal(err)
+	}
+	assertFixedExpenseMonths(t, store, []string{"2026-08", "2026-09", "2026-10", "2027-01"})
+	restored, err := store.FixedExpenses(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	januaryCursor := now.UTC().Format(time.RFC3339Nano)
+	if restored[0].ArchivedAt != "" || restored[0].OccurrenceStartAt != januaryCursor {
+		t.Fatalf("restored expense=%+v", restored[0])
+	}
+
+	if _, err := service.FixedExpensesOverview(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Bootstrap(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.FixedExpensesOverview(ctx); err != nil {
+		t.Fatal(err)
+	}
+	assertFixedExpenseMonths(t, store, []string{"2026-08", "2026-09", "2026-10", "2027-01"})
+
+	now = time.Date(2027, time.February, 2, 12, 0, 0, 0, time.Local)
+	if _, err := service.Bootstrap(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.FixedExpensesOverview(ctx); err != nil {
+		t.Fatal(err)
+	}
+	assertFixedExpenseMonths(t, store, []string{"2026-08", "2026-09", "2026-10", "2027-01", "2027-02"})
+
+	now = time.Date(2027, time.March, 1, 12, 0, 0, 0, time.Local)
+	if err := service.RestoreFixedExpense(ctx, expense.ID); err != nil {
+		t.Fatal(err)
+	}
+	active, err := store.FixedExpenses(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if active[0].OccurrenceStartAt != januaryCursor {
+		t.Fatalf("idempotent restore moved cursor from %q to %q", januaryCursor, active[0].OccurrenceStartAt)
+	}
+}
+
+func assertFixedExpenseMonths(t *testing.T, store *storage.Store, want []string) {
+	t.Helper()
+	occurrences, err := store.FixedExpenseOccurrences(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]string, len(occurrences))
+	for index, occurrence := range occurrences {
+		got[index] = occurrence.ReferenceMonth
+	}
+	sort.Strings(got)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("occurrence months=%v want=%v", got, want)
 	}
 }
 

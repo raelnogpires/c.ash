@@ -85,6 +85,12 @@ ocorrência e a criação da movimentação vinculada acontecem na mesma transa�
 SQLite; um índice parcial impede duas movimentações ativas para a mesma
 ocorrência.
 
+A migração `006_fixed_expense_occurrence_cursor` acrescenta a cada regra um
+cursor interno de reconciliação. Ao arquivar, a aplicação completa as
+ocorrências até o mês do arquivamento; ao restaurar, move o cursor para o
+instante da restauração. Assim, o mês corrente volta a ser elegível sem criar
+ocorrências para meses inteiramente arquivados.
+
 Na inicialização, o aplicativo verifica bloqueio de instância e integridade do
 banco. Bancos criptografados permanecem fechados até que a senha ou chave de
 recuperação libere a chave do banco. O `Store` gerencia esse ciclo de vida:

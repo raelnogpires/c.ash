@@ -19,7 +19,7 @@ func TestOpen_MigratesReopensAndLocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	var migrations int
-	if err := first.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrations); err != nil || migrations != 5 {
+	if err := first.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrations); err != nil || migrations != 6 {
 		t.Fatalf("migrations=%d err=%v", migrations, err)
 	}
 	categories, err := first.Categories(ctx)
@@ -39,6 +39,49 @@ func TestOpen_MigratesReopensAndLocks(t *testing.T) {
 	defer reopened.Close()
 	if err := ApplyMigrations(ctx, reopened.db, migrationFiles); err != nil {
 		t.Fatalf("idempotent migration: %v", err)
+	}
+}
+
+func TestMigration_FixedExpenseOccurrenceCursorStartsAtCreatedAt(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", "file:"+t.TempDir()+"/fixed-expense-upgrade.db?_foreign_keys=on")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	legacy := fstest.MapFS{}
+	for _, name := range []string{
+		"migrations/001_initial.sql",
+		"migrations/002_transactions.sql",
+		"migrations/003_fixed_expenses.sql",
+		"migrations/004_pdf_imports.sql",
+		"migrations/005_credit_cards.sql",
+	} {
+		legacy[name] = &fstest.MapFile{Data: mustReadMigration(t, name)}
+	}
+	if err := ApplyMigrations(ctx, db, legacy); err != nil {
+		t.Fatal(err)
+	}
+	const createdAt = "2026-08-10T12:00:00Z"
+	_, err = db.Exec(`INSERT INTO accounts(id,name,type,opening_balance_cents,opening_date,created_at,updated_at)
+		VALUES('a','Principal','checking',1000,'2026-08-01',?,?)`, createdAt, createdAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`INSERT INTO fixed_expenses(id,description,amount_cents,due_day,account_id,category_id,created_at,updated_at)
+		VALUES('f','Internet',100,10,'a','bills',?,?)`, createdAt, createdAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ApplyMigrations(ctx, db, migrationFiles); err != nil {
+		t.Fatal(err)
+	}
+	var occurrenceStartAt string
+	if err := db.QueryRow(`SELECT occurrence_start_at FROM fixed_expenses WHERE id='f'`).Scan(&occurrenceStartAt); err != nil {
+		t.Fatal(err)
+	}
+	if occurrenceStartAt != createdAt {
+		t.Fatalf("occurrence_start_at=%q", occurrenceStartAt)
 	}
 }
 

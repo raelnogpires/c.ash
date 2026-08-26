@@ -101,8 +101,10 @@ pendentes e vencerem até o fim do mês corrente, são descontadas apenas do
 **disponível após despesas fixas**. Ao confirmar, o usuário informa valor e
 data reais; a aplicação cria uma despesa comum vinculada à ocorrência, marca a
 previsão como confirmada e passa a alterar o saldo realizado uma única vez.
-Uma ocorrência também pode ser dispensada e reaberta. Arquivar uma regra impede
-novas ocorrências, preservando todo o histórico já gerado.
+Uma ocorrência também pode ser dispensada e reaberta. Arquivar uma regra gera
+eventuais meses pendentes até o próprio mês do arquivamento e preserva todo o
+histórico. Se a regra for restaurada, o mês da restauração volta a ser elegível,
+mas meses inteiramente arquivados não recebem ocorrências retroativas.
 
 ## Categorias e orçamento
 

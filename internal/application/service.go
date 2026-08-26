@@ -1168,7 +1168,7 @@ func (s *Service) FixedExpensesOverview(ctx context.Context) (FixedExpensesOverv
 func (s *Service) CreateFixedExpense(ctx context.Context, in FixedExpenseInput) (domain.FixedExpense, error) {
 	now := s.now()
 	at := now.UTC().Format(time.RFC3339Nano)
-	expense := domain.FixedExpense{ID: newID(), Description: strings.TrimSpace(in.Description), AmountCents: in.AmountCents, DueDay: in.DueDay, AccountID: in.AccountID, CategoryID: in.CategoryID, CreatedAt: at, UpdatedAt: at}
+	expense := domain.FixedExpense{ID: newID(), Description: strings.TrimSpace(in.Description), AmountCents: in.AmountCents, DueDay: in.DueDay, AccountID: in.AccountID, CategoryID: in.CategoryID, OccurrenceStartAt: at, CreatedAt: at, UpdatedAt: at}
 	err := s.store.WithTx(ctx, func(q storage.Queries) error {
 		if err := validateFixedExpenseInput(ctx, q, expense); err != nil {
 			return err
@@ -1229,7 +1229,8 @@ func (s *Service) UpdateFixedExpense(ctx context.Context, id string, in FixedExp
 }
 
 func (s *Service) ArchiveFixedExpense(ctx context.Context, id string) error {
-	at := s.now().UTC().Format(time.RFC3339Nano)
+	now := s.now()
+	at := now.UTC().Format(time.RFC3339Nano)
 	return s.store.WithTx(ctx, func(q storage.Queries) error {
 		current, err := q.FixedExpense(ctx, id)
 		if err != nil {
@@ -1238,12 +1239,19 @@ func (s *Service) ArchiveFixedExpense(ctx context.Context, id string) error {
 		if current == nil {
 			return domain.ErrUnknownFixedExpense
 		}
-		return q.SetFixedExpenseArchivedAt(ctx, id, at, at)
+		if current.ArchivedAt != "" {
+			return nil
+		}
+		if err := reconcileFixedExpenseOccurrences(ctx, q, []domain.FixedExpense{*current}, now); err != nil {
+			return err
+		}
+		return q.ArchiveFixedExpense(ctx, id, at)
 	})
 }
 
 func (s *Service) RestoreFixedExpense(ctx context.Context, id string) error {
-	at := s.now().UTC().Format(time.RFC3339Nano)
+	now := s.now()
+	at := now.UTC().Format(time.RFC3339Nano)
 	return s.store.WithTx(ctx, func(q storage.Queries) error {
 		current, err := q.FixedExpense(ctx, id)
 		if err != nil {
@@ -1252,7 +1260,15 @@ func (s *Service) RestoreFixedExpense(ctx context.Context, id string) error {
 		if current == nil {
 			return domain.ErrUnknownFixedExpense
 		}
-		return q.SetFixedExpenseArchivedAt(ctx, id, "", at)
+		if current.ArchivedAt == "" {
+			return nil
+		}
+		if err := q.RestoreFixedExpense(ctx, id, at, at); err != nil {
+			return err
+		}
+		current.ArchivedAt = ""
+		current.OccurrenceStartAt = at
+		return reconcileFixedExpenseOccurrences(ctx, q, []domain.FixedExpense{*current}, now)
 	})
 }
 
@@ -1339,41 +1355,46 @@ func (s *Service) ReopenFixedExpenseOccurrence(ctx context.Context, id string) e
 }
 
 func (s *Service) ensureFixedExpenseOccurrences(ctx context.Context, now time.Time) error {
-	at := now.UTC().Format(time.RFC3339Nano)
 	return s.store.WithTx(ctx, func(q storage.Queries) error {
 		expenses, err := q.FixedExpenses(ctx)
 		if err != nil {
 			return err
 		}
-		occurrences, err := q.FixedExpenseOccurrences(ctx)
+		return reconcileFixedExpenseOccurrences(ctx, q, expenses, now)
+	})
+}
+
+func reconcileFixedExpenseOccurrences(ctx context.Context, q storage.Queries, expenses []domain.FixedExpense, now time.Time) error {
+	at := now.UTC().Format(time.RFC3339Nano)
+	occurrences, err := q.FixedExpenseOccurrences(ctx)
+	if err != nil {
+		return err
+	}
+	existing := make(map[string]bool, len(occurrences))
+	for _, occurrence := range occurrences {
+		existing[occurrence.FixedExpenseID+":"+occurrence.ReferenceMonth] = true
+	}
+	currentMonth := monthStart(now)
+	for _, expense := range expenses {
+		if expense.ArchivedAt != "" {
+			continue
+		}
+		start, err := time.Parse(time.RFC3339Nano, expense.OccurrenceStartAt)
 		if err != nil {
-			return err
+			start = now
 		}
-		existing := make(map[string]bool, len(occurrences))
-		for _, occurrence := range occurrences {
-			existing[occurrence.FixedExpenseID+":"+occurrence.ReferenceMonth] = true
-		}
-		currentMonth := monthStart(now)
-		for _, expense := range expenses {
-			if expense.ArchivedAt != "" {
+		for month := monthStart(start.In(time.Local)); !month.After(currentMonth); month = month.AddDate(0, 1, 0) {
+			key := expense.ID + ":" + month.Format("2006-01")
+			if existing[key] {
 				continue
 			}
-			created, err := time.Parse(time.RFC3339Nano, expense.CreatedAt)
-			if err != nil {
-				created = now
+			if err := q.InsertFixedExpenseOccurrence(ctx, occurrenceFromExpense(expense, month, now), at); err != nil {
+				return err
 			}
-			for month := monthStart(created.In(time.Local)); !month.After(currentMonth); month = month.AddDate(0, 1, 0) {
-				key := expense.ID + ":" + month.Format("2006-01")
-				if existing[key] {
-					continue
-				}
-				if err := q.InsertFixedExpenseOccurrence(ctx, occurrenceFromExpense(expense, month, now), at); err != nil {
-					return err
-				}
-			}
+			existing[key] = true
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 func validateFixedExpenseInput(ctx context.Context, q storage.Queries, expense domain.FixedExpense) error {

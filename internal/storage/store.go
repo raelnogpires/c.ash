@@ -75,7 +75,8 @@ type Queries interface {
 	InsertTransactionRevision(context.Context, domain.Transaction, string, string) error
 	InsertFixedExpense(context.Context, domain.FixedExpense, string) error
 	UpdateFixedExpense(context.Context, domain.FixedExpense, string) error
-	SetFixedExpenseArchivedAt(context.Context, string, string, string) error
+	ArchiveFixedExpense(context.Context, string, string) error
+	RestoreFixedExpense(context.Context, string, string, string) error
 	InsertFixedExpenseOccurrence(context.Context, domain.FixedExpenseOccurrence, string) error
 	SetFixedExpenseOccurrence(context.Context, string, domain.FixedExpenseOccurrenceStatus, string, string) error
 	InsertCreditCardInvoice(context.Context, domain.CreditCardInvoice, string) error
@@ -674,7 +675,8 @@ func (q *dbQueries) InsertTransactionRevision(ctx context.Context, t domain.Tran
 }
 
 const fixedExpenseSelect = `SELECT f.id, f.description, f.amount_cents, f.due_day,
-f.account_id, a.name, f.category_id, c.name, COALESCE(f.archived_at, ''), f.created_at, f.updated_at
+f.account_id, a.name, f.category_id, c.name, COALESCE(f.archived_at, ''), f.occurrence_start_at,
+f.created_at, f.updated_at
 FROM fixed_expenses f
 JOIN accounts a ON a.id=f.account_id
 JOIN categories c ON c.id=f.category_id`
@@ -683,7 +685,7 @@ func scanFixedExpense(scanner interface{ Scan(...any) error }) (domain.FixedExpe
 	var expense domain.FixedExpense
 	err := scanner.Scan(&expense.ID, &expense.Description, &expense.AmountCents, &expense.DueDay,
 		&expense.AccountID, &expense.AccountName, &expense.CategoryID, &expense.CategoryName,
-		&expense.ArchivedAt, &expense.CreatedAt, &expense.UpdatedAt)
+		&expense.ArchivedAt, &expense.OccurrenceStartAt, &expense.CreatedAt, &expense.UpdatedAt)
 	return expense, err
 }
 
@@ -762,7 +764,11 @@ func (q *dbQueries) OccurrenceForTransaction(ctx context.Context, transactionID 
 }
 
 func (q *dbQueries) InsertFixedExpense(ctx context.Context, expense domain.FixedExpense, at string) error {
-	_, err := q.q.ExecContext(ctx, `INSERT INTO fixed_expenses(id,description,amount_cents,due_day,account_id,category_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`, expense.ID, expense.Description, expense.AmountCents, expense.DueDay, expense.AccountID, expense.CategoryID, at, at)
+	occurrenceStartAt := expense.OccurrenceStartAt
+	if occurrenceStartAt == "" {
+		occurrenceStartAt = at
+	}
+	_, err := q.q.ExecContext(ctx, `INSERT INTO fixed_expenses(id,description,amount_cents,due_day,account_id,category_id,occurrence_start_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)`, expense.ID, expense.Description, expense.AmountCents, expense.DueDay, expense.AccountID, expense.CategoryID, occurrenceStartAt, at, at)
 	return err
 }
 
@@ -778,12 +784,20 @@ func (q *dbQueries) UpdateFixedExpense(ctx context.Context, expense domain.Fixed
 	return err
 }
 
-func (q *dbQueries) SetFixedExpenseArchivedAt(ctx context.Context, id, archivedAt, at string) error {
-	var value any
-	if archivedAt != "" {
-		value = archivedAt
+func (q *dbQueries) ArchiveFixedExpense(ctx context.Context, id, at string) error {
+	result, err := q.q.ExecContext(ctx, `UPDATE fixed_expenses SET archived_at=?, updated_at=? WHERE id=? AND archived_at IS NULL`, at, at, id)
+	if err != nil {
+		return err
 	}
-	result, err := q.q.ExecContext(ctx, `UPDATE fixed_expenses SET archived_at=?, updated_at=? WHERE id=?`, value, at, id)
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return domain.ErrUnknownFixedExpense
+	}
+	return err
+}
+
+func (q *dbQueries) RestoreFixedExpense(ctx context.Context, id, occurrenceStartAt, at string) error {
+	result, err := q.q.ExecContext(ctx, `UPDATE fixed_expenses SET archived_at=NULL, occurrence_start_at=?, updated_at=? WHERE id=? AND archived_at IS NOT NULL`, occurrenceStartAt, at, id)
 	if err != nil {
 		return err
 	}
