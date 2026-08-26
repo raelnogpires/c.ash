@@ -238,6 +238,23 @@ func (a *App) AdjustAccountBalance(id string, in application.BalanceAdjustmentIn
 	v, err := a.service.AdjustAccountBalance(a.context(), id, in)
 	return v, safe(err)
 }
+func (a *App) Planning(month string) (domain.Planning, error) {
+	v, err := a.service.Planning(a.context(), month)
+	return v, safe(err)
+}
+func (a *App) SetMonthlyBudget(in application.MonthlyBudgetInput) (domain.MonthlyBudget, error) {
+	v, err := a.service.SetMonthlyBudget(a.context(), in)
+	return v, safe(err)
+}
+func (a *App) SaveGoal(id string, in application.GoalInput) (domain.Goal, error) {
+	v, err := a.service.SaveGoal(a.context(), id, in)
+	return v, safe(err)
+}
+func (a *App) ArchiveGoal(id string) error { return safe(a.service.ArchiveGoal(a.context(), id)) }
+func (a *App) SetGoalAllocations(id string, in []application.GoalAllocationInput) (domain.Goal, error) {
+	v, err := a.service.SetGoalAllocations(a.context(), id, in)
+	return v, safe(err)
+}
 func (a *App) DeleteAccount(id string) error {
 	return safe(a.service.DeleteAccount(a.context(), id))
 }
@@ -363,6 +380,10 @@ func safe(err error) error {
 		{domain.ErrOpeningBalanceLocked, "Use um ajuste de saldo para contas que já possuem movimentações."},
 		{domain.ErrAdjustmentReason, "Informe o motivo do ajuste de saldo."},
 		{domain.ErrNoBalanceChange, "O saldo informado já é o saldo atual da conta."},
+		{domain.ErrInvalidBudget, "Revise o mês e os limites do orçamento."},
+		{domain.ErrInvalidGoal, "Revise o nome, tipo e valor da meta."},
+		{domain.ErrUnknownGoal, "Esta meta não existe mais."},
+		{domain.ErrAllocationLimit, "As reservas desta conta não podem superar o saldo disponível."},
 		{storage.ErrLocked, "Desbloqueie o banco de dados para continuar."},
 		{storage.ErrInvalidCredential, "Senha ou chave de recuperação incorreta."},
 		{storage.ErrWeakPassword, "Use uma senha com pelo menos 12 caracteres."},

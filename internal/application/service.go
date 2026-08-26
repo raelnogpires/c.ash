@@ -57,6 +57,30 @@ type BalanceAdjustmentInput struct {
 	Reason             string `json:"reason"`
 }
 
+type CategoryBudgetInput struct {
+	CategoryID string `json:"categoryId"`
+	LimitCents int64  `json:"limitCents"`
+	Rollover   bool   `json:"rollover"`
+}
+
+type MonthlyBudgetInput struct {
+	ReferenceMonth    string                `json:"referenceMonth"`
+	OverallLimitCents int64                 `json:"overallLimitCents"`
+	CategoryLimits    []CategoryBudgetInput `json:"categoryLimits"`
+}
+
+type GoalInput struct {
+	Name        string          `json:"name"`
+	Kind        domain.GoalKind `json:"kind"`
+	TargetCents int64           `json:"targetCents"`
+	Deadline    string          `json:"deadline"`
+}
+
+type GoalAllocationInput struct {
+	AccountID   string `json:"accountId"`
+	AmountCents int64  `json:"amountCents"`
+}
+
 type CreditCardPaymentInput struct {
 	AccountID      string `json:"accountId"`
 	AmountCents    int64  `json:"amountCents"`
@@ -107,6 +131,7 @@ type Bootstrap struct {
 	Categories []domain.Category `json:"categories"`
 	Dashboard  domain.Dashboard  `json:"dashboard"`
 	Theme      domain.Theme      `json:"theme"`
+	Planning   domain.Planning   `json:"planning"`
 }
 
 type Service struct {
@@ -245,6 +270,37 @@ func (s *Service) Bootstrap(ctx context.Context) (Bootstrap, error) {
 		theme = p.Theme
 	}
 	dashboard := domain.CalculateDashboardWithFixedExpenses(accounts, txs, occurrences, s.now())
+	planning, err := s.planning(ctx, s.now().In(time.Local).Format("2006-01"), accounts, txs)
+	if err != nil {
+		return Bootstrap{}, err
+	}
+	reserved := int64(0)
+	targets, allocated := int64(0), int64(0)
+	for _, goal := range planning.Goals {
+		if goal.ArchivedAt != "" {
+			continue
+		}
+		reserved += goal.AllocatedCents
+		targets += goal.TargetCents
+		allocated += goal.AllocatedCents
+	}
+	eligible := int64(0)
+	for _, account := range accounts {
+		if account.Type != domain.AccountCreditCard {
+			eligible += account.CurrentBalanceCents
+		}
+	}
+	dashboard.ReservedValueCents = reserved
+	dashboard.EligibleBalanceCents = eligible
+	dashboard.FreeValueCents = eligible - reserved
+	dashboard.SafelySpendableCents = dashboard.FreeValueCents - dashboard.PendingFixedExpensesCents
+	dashboard.AvailableBalanceCents = dashboard.SafelySpendableCents
+	if planning.Budget != nil {
+		dashboard.BudgetProgressPercent = planning.Budget.ProgressPercent
+	}
+	if targets > 0 {
+		dashboard.GoalProgressPercent = float64(allocated) / float64(targets) * 100
+	}
 	overview, err := s.creditCardsOverview(ctx)
 	if err != nil {
 		return Bootstrap{}, err
@@ -257,7 +313,225 @@ func (s *Service) Bootstrap(ctx context.Context) (Bootstrap, error) {
 	if len(dashboard.UpcomingInvoices) > 3 {
 		dashboard.UpcomingInvoices = dashboard.UpcomingInvoices[:3]
 	}
-	return Bootstrap{Profile: p, Setup: p != nil, Accounts: accounts, Categories: categories, Dashboard: dashboard, Theme: theme}, nil
+	return Bootstrap{Profile: p, Setup: p != nil, Accounts: accounts, Categories: categories, Dashboard: dashboard, Theme: theme, Planning: planning}, nil
+}
+
+func (s *Service) Planning(ctx context.Context, month string) (domain.Planning, error) {
+	if month == "" {
+		month = s.now().In(time.Local).Format("2006-01")
+	}
+	accounts, err := s.store.Accounts(ctx)
+	if err != nil {
+		return domain.Planning{}, err
+	}
+	transactions, err := s.store.Transactions(ctx)
+	if err != nil {
+		return domain.Planning{}, err
+	}
+	return s.planning(ctx, month, accounts, transactions)
+}
+
+func (s *Service) planning(ctx context.Context, month string, accounts []domain.Account, transactions []domain.Transaction) (domain.Planning, error) {
+	if _, err := time.Parse("2006-01", month); err != nil {
+		return domain.Planning{}, domain.ErrInvalidDate
+	}
+	budget, err := s.store.MonthlyBudget(ctx, month)
+	if err != nil {
+		return domain.Planning{}, err
+	}
+	if budget != nil {
+		spentByCategory := map[string]int64{}
+		for _, transaction := range transactions {
+			if transaction.Kind != domain.Expense || transaction.Origin == domain.OriginAdjustment || transaction.InvoicePaymentID != "" || !strings.HasPrefix(transaction.OccurrenceDate, month+"-") {
+				continue
+			}
+			budget.SpentCents += transaction.AmountCents
+			spentByCategory[transaction.CategoryID] += transaction.AmountCents
+		}
+		budget.RemainingCents = budget.OverallLimitCents - budget.SpentCents
+		if budget.OverallLimitCents > 0 {
+			budget.ProgressPercent = float64(budget.SpentCents) / float64(budget.OverallLimitCents) * 100
+		}
+		previousMonth, _ := time.Parse("2006-01", month)
+		previous, previousErr := s.store.MonthlyBudget(ctx, previousMonth.AddDate(0, -1, 0).Format("2006-01"))
+		if previousErr != nil {
+			return domain.Planning{}, previousErr
+		}
+		previousSpent := map[string]int64{}
+		for _, transaction := range transactions {
+			if transaction.Kind == domain.Expense && transaction.Origin != domain.OriginAdjustment && strings.HasPrefix(transaction.OccurrenceDate, previousMonth.AddDate(0, -1, 0).Format("2006-01")+"-") {
+				previousSpent[transaction.CategoryID] += transaction.AmountCents
+			}
+		}
+		for index := range budget.CategoryLimits {
+			limit := &budget.CategoryLimits[index]
+			if limit.Rollover && previous != nil {
+				for _, old := range previous.CategoryLimits {
+					if old.CategoryID == limit.CategoryID && old.Rollover && old.LimitCents > previousSpent[old.CategoryID] {
+						limit.RolloverCents = old.LimitCents - previousSpent[old.CategoryID]
+					}
+				}
+			}
+			limit.SpentCents = spentByCategory[limit.CategoryID]
+			limit.AvailableCents = limit.LimitCents + limit.RolloverCents - limit.SpentCents
+			limit.Exceeded = limit.AvailableCents < 0
+		}
+	}
+	goals, err := s.store.Goals(ctx)
+	if err != nil {
+		return domain.Planning{}, err
+	}
+	for index := range goals {
+		for _, allocation := range goals[index].Allocations {
+			goals[index].AllocatedCents += allocation.AmountCents
+		}
+		if goals[index].TargetCents > 0 {
+			goals[index].ProgressPercent = float64(goals[index].AllocatedCents) / float64(goals[index].TargetCents) * 100
+		}
+	}
+	return domain.Planning{Budget: budget, Goals: goals}, nil
+}
+
+func (s *Service) SetMonthlyBudget(ctx context.Context, in MonthlyBudgetInput) (domain.MonthlyBudget, error) {
+	if _, err := time.Parse("2006-01", in.ReferenceMonth); err != nil || in.OverallLimitCents < 0 {
+		return domain.MonthlyBudget{}, domain.ErrInvalidBudget
+	}
+	budget := domain.MonthlyBudget{ReferenceMonth: in.ReferenceMonth, OverallLimitCents: in.OverallLimitCents, CategoryLimits: []domain.CategoryBudgetLimit{}}
+	seen := map[string]bool{}
+	for _, item := range in.CategoryLimits {
+		if item.CategoryID == "" || item.LimitCents < 0 || seen[item.CategoryID] {
+			return domain.MonthlyBudget{}, domain.ErrInvalidBudget
+		}
+		seen[item.CategoryID] = true
+		category, err := s.store.Category(ctx, item.CategoryID)
+		if err != nil || category == nil || category.Kind != domain.Expense {
+			return domain.MonthlyBudget{}, domain.ErrUnknownCategory
+		}
+		budget.CategoryLimits = append(budget.CategoryLimits, domain.CategoryBudgetLimit{ID: newID(), CategoryID: item.CategoryID, CategoryName: category.Name, LimitCents: item.LimitCents, Rollover: item.Rollover})
+	}
+	at := s.now().UTC().Format(time.RFC3339Nano)
+	err := s.store.WithTx(ctx, func(q storage.Queries) error { return q.ReplaceMonthlyBudget(ctx, budget, at) })
+	if err != nil {
+		return domain.MonthlyBudget{}, err
+	}
+	planning, err := s.Planning(ctx, in.ReferenceMonth)
+	if err != nil || planning.Budget == nil {
+		return budget, err
+	}
+	return *planning.Budget, nil
+}
+
+func validateGoalInput(in GoalInput) error {
+	if strings.TrimSpace(in.Name) == "" || in.TargetCents < 0 || (in.Kind != domain.GoalEmergencyReserve && in.Kind != domain.GoalSavings) {
+		return domain.ErrInvalidGoal
+	}
+	if in.Deadline != "" {
+		if _, err := domain.ParseCivilDate(in.Deadline); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) SaveGoal(ctx context.Context, id string, in GoalInput) (domain.Goal, error) {
+	if err := validateGoalInput(in); err != nil {
+		return domain.Goal{}, err
+	}
+	at := s.now().UTC().Format(time.RFC3339Nano)
+	goal := domain.Goal{ID: id, Name: strings.TrimSpace(in.Name), Kind: in.Kind, TargetCents: in.TargetCents, Deadline: in.Deadline, UpdatedAt: at}
+	if id == "" {
+		goal.ID, goal.CreatedAt = newID(), at
+	}
+	err := s.store.WithTx(ctx, func(q storage.Queries) error {
+		if id == "" {
+			return q.InsertGoal(ctx, goal, at)
+		}
+		return q.UpdateGoal(ctx, goal, at)
+	})
+	return goal, err
+}
+
+func (s *Service) ArchiveGoal(ctx context.Context, id string) error {
+	at := s.now().UTC().Format(time.RFC3339Nano)
+	return s.store.WithTx(ctx, func(q storage.Queries) error { return q.ArchiveGoal(ctx, id, at) })
+}
+
+func (s *Service) SetGoalAllocations(ctx context.Context, goalID string, inputs []GoalAllocationInput) (domain.Goal, error) {
+	goal, err := s.store.Goal(ctx, goalID)
+	if err != nil || goal == nil {
+		if err != nil {
+			return domain.Goal{}, err
+		}
+		return domain.Goal{}, domain.ErrUnknownGoal
+	}
+	allocations := make([]domain.GoalAllocation, 0, len(inputs))
+	seen := map[string]bool{}
+	for _, input := range inputs {
+		if input.AmountCents < 0 || input.AccountID == "" || seen[input.AccountID] {
+			return domain.Goal{}, domain.ErrInvalidGoal
+		}
+		seen[input.AccountID] = true
+		account, err := s.store.Account(ctx, input.AccountID)
+		if err != nil || account == nil || account.Type == domain.AccountCreditCard {
+			return domain.Goal{}, domain.ErrUnknownAccount
+		}
+		allocations = append(allocations, domain.GoalAllocation{GoalID: goalID, AccountID: input.AccountID, AccountName: account.Name, AmountCents: input.AmountCents})
+	}
+	accounts, err := s.store.Accounts(ctx)
+	if err != nil {
+		return domain.Goal{}, err
+	}
+	transactions, err := s.store.Transactions(ctx)
+	if err != nil {
+		return domain.Goal{}, err
+	}
+	balances := make(map[string]int64, len(accounts))
+	accountsByID := make(map[string]domain.Account, len(accounts))
+	for _, account := range accounts {
+		balances[account.ID] = account.OpeningBalanceCents
+		accountsByID[account.ID] = account
+	}
+	for _, transaction := range transactions {
+		domain.ApplyTransactionWithAccounts(balances, accountsByID, transaction)
+	}
+	goals, err := s.store.Goals(ctx)
+	if err != nil {
+		return domain.Goal{}, err
+	}
+	totals := map[string]int64{}
+	for _, existing := range goals {
+		if existing.ArchivedAt != "" || existing.ID == goalID {
+			continue
+		}
+		for _, allocation := range existing.Allocations {
+			totals[allocation.AccountID] += allocation.AmountCents
+		}
+	}
+	for _, allocation := range allocations {
+		totals[allocation.AccountID] += allocation.AmountCents
+	}
+	for accountID, total := range totals {
+		maximum := balances[accountID]
+		if maximum < 0 {
+			maximum = 0
+		}
+		if total > maximum {
+			return domain.Goal{}, domain.ErrAllocationLimit
+		}
+	}
+	at := s.now().UTC().Format(time.RFC3339Nano)
+	if err := s.store.WithTx(ctx, func(q storage.Queries) error { return q.ReplaceGoalAllocations(ctx, goalID, allocations, at) }); err != nil {
+		return domain.Goal{}, err
+	}
+	goal.Allocations = allocations
+	goal.AllocatedCents = 0
+	for _, allocation := range allocations {
+		goal.AllocatedCents += allocation.AmountCents
+	}
+	if goal.TargetCents > 0 {
+		goal.ProgressPercent = float64(goal.AllocatedCents) / float64(goal.TargetCents) * 100
+	}
+	return *goal, nil
 }
 
 func (s *Service) CompleteOnboarding(ctx context.Context, in OnboardingInput) (domain.Profile, error) {

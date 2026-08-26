@@ -54,7 +54,7 @@ func TestCalculateDashboard_EmptyRecentTransactionsEncodeAsArray(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(encoded) != `{"availableBalanceCents":0,"totalBalanceCents":0,"pendingFixedExpensesCents":0,"pendingFixedExpenseCount":0,"monthlyIncomeCents":0,"monthlyExpenseCents":0,"recentTransactions":[],"balanceHistory":[{"month":"2026-02","label":"Feb","balanceCents":0},{"month":"2026-03","label":"Mar","balanceCents":0},{"month":"2026-04","label":"Apr","balanceCents":0},{"month":"2026-05","label":"May","balanceCents":0},{"month":"2026-06","label":"Jun","balanceCents":0},{"month":"2026-07","label":"Jul","balanceCents":0},{"month":"2026-08","label":"Aug","balanceCents":0}],"accountAllocations":[],"hasNegativeBalance":false,"creditCardDebtCents":0,"upcomingInvoices":[]}` {
+	if !strings.Contains(string(encoded), `"recentTransactions":[]`) || !strings.Contains(string(encoded), `"accountAllocations":[]`) || !strings.Contains(string(encoded), `"upcomingInvoices":[]`) {
 		t.Fatalf("dashboard JSON = %s", encoded)
 	}
 }

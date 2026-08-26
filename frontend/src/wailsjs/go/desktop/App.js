@@ -6,6 +6,8 @@ export function ArchiveFixedExpense(arg1) {
   return window['go']['desktop']['App']['ArchiveFixedExpense'](arg1);
 }
 
+export function ArchiveGoal(arg1) { return window['go']['desktop']['App']['ArchiveGoal'](arg1); }
+
 export function AdjustAccountBalance(arg1, arg2) {
   return window['go']['desktop']['App']['AdjustAccountBalance'](arg1, arg2);
 }
@@ -114,6 +116,8 @@ export function ListTrashedTransactions() {
   return window['go']['desktop']['App']['ListTrashedTransactions']();
 }
 
+export function Planning(arg1) { return window['go']['desktop']['App']['Planning'](arg1); }
+
 export function PayCreditCardInvoice(arg1, arg2) {
   return window['go']['desktop']['App']['PayCreditCardInvoice'](arg1, arg2);
 }
@@ -129,6 +133,12 @@ export function ReopenFixedExpenseOccurrence(arg1) {
 export function ResetBackupFolder() {
   return window['go']['desktop']['App']['ResetBackupFolder']();
 }
+
+export function SaveGoal(arg1, arg2) { return window['go']['desktop']['App']['SaveGoal'](arg1, arg2); }
+
+export function SetGoalAllocations(arg1, arg2) { return window['go']['desktop']['App']['SetGoalAllocations'](arg1, arg2); }
+
+export function SetMonthlyBudget(arg1) { return window['go']['desktop']['App']['SetMonthlyBudget'](arg1); }
 
 export function RestoreBackup(arg1) {
   return window['go']['desktop']['App']['RestoreBackup'](arg1);

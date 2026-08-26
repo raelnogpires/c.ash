@@ -405,6 +405,50 @@ func TestAdjustAccountBalance_CreatesAuditableExcludedTransaction(t *testing.T) 
 	}
 }
 
+func TestPlanning_BudgetsRolloverGoalsAndAllocationLimits(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	account, err := service.CreateAccount(ctx, AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 10000, OpeningDate: "2026-07-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 2000, AccountID: account.ID, CategoryID: "food", Description: "Mercado julho", OccurrenceDate: "2026-07-10"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.SetMonthlyBudget(ctx, MonthlyBudgetInput{ReferenceMonth: "2026-07", OverallLimitCents: 5000, CategoryLimits: []CategoryBudgetInput{{CategoryID: "food", LimitCents: 3000, Rollover: true}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 2500, AccountID: account.ID, CategoryID: "food", Description: "Mercado agosto", OccurrenceDate: "2026-08-10"}); err != nil {
+		t.Fatal(err)
+	}
+	budget, err := service.SetMonthlyBudget(ctx, MonthlyBudgetInput{ReferenceMonth: "2026-08", OverallLimitCents: 6000, CategoryLimits: []CategoryBudgetInput{{CategoryID: "food", LimitCents: 3000, Rollover: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit := budget.CategoryLimits[0]
+	if budget.SpentCents != 2500 || budget.RemainingCents != 3500 || limit.RolloverCents != 1000 || limit.AvailableCents != 1500 || limit.Exceeded {
+		t.Fatalf("budget=%+v", budget)
+	}
+	goal, err := service.SaveGoal(ctx, "", GoalInput{Name: "Reserva", Kind: domain.GoalEmergencyReserve, TargetCents: 10000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	goal, err = service.SetGoalAllocations(ctx, goal.ID, []GoalAllocationInput{{AccountID: account.ID, AmountCents: 5000}})
+	if err != nil || goal.AllocatedCents != 5000 || goal.ProgressPercent != 50 {
+		t.Fatalf("goal=%+v err=%v", goal, err)
+	}
+	if _, err := service.SetGoalAllocations(ctx, goal.ID, []GoalAllocationInput{{AccountID: account.ID, AmountCents: 6000}}); !errors.Is(err, domain.ErrAllocationLimit) {
+		t.Fatalf("allocation error=%v", err)
+	}
+	bootstrap, err := service.Bootstrap(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bootstrap.Dashboard.EligibleBalanceCents != 5500 || bootstrap.Dashboard.ReservedValueCents != 5000 || bootstrap.Dashboard.FreeValueCents != 500 || bootstrap.Dashboard.SafelySpendableCents != 500 {
+		t.Fatalf("dashboard=%+v", bootstrap.Dashboard)
+	}
+}
+
 func TestDeleteAccount_BlocksUsageAndAllowsLastAccount(t *testing.T) {
 	service, _ := testService(t)
 	ctx := context.Background()

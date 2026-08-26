@@ -659,6 +659,8 @@ func exportJSON(ctx context.Context, tx *sql.Tx, appVersion string) ([]byte, err
 		{"fixedExpenses", "fixed_expenses", "created_at, id", ""}, {"fixedExpenseOccurrences", "fixed_expense_occurrences", "reference_month, id", ""},
 		{"invoices", "credit_card_invoices", "closing_date, id", ""}, {"installments", "credit_card_installments", "created_at, id", ""},
 		{"payments", "credit_card_payments", "occurrence_date, created_at, id", ""},
+		{"monthlyBudgets", "monthly_budgets", "reference_month", ""}, {"budgetCategoryLimits", "budget_category_limits", "reference_month, category_id", ""},
+		{"goals", "goals", "created_at, id", ""}, {"goalAllocations", "goal_allocations", "goal_id, account_id", ""},
 	}
 	schema, err := schemaVersion(ctx, tx)
 	if err != nil {

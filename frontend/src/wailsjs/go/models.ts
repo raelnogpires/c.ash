@@ -41,6 +41,26 @@ export namespace application {
 	        this.reason = source["reason"];
 	    }
 	}
+	export class GoalAllocationInput {
+	    accountId: string; amountCents: number;
+	    static createFrom(source: any = {}) { return new GoalAllocationInput(source); }
+	    constructor(source: any = {}) { if ('string' === typeof source) source=JSON.parse(source); this.accountId=source["accountId"]; this.amountCents=source["amountCents"]; }
+	}
+	export class GoalInput {
+	    name: string; kind: string; targetCents: number; deadline: string;
+	    static createFrom(source: any = {}) { return new GoalInput(source); }
+	    constructor(source: any = {}) { if ('string' === typeof source) source=JSON.parse(source); this.name=source["name"];this.kind=source["kind"];this.targetCents=source["targetCents"];this.deadline=source["deadline"]; }
+	}
+	export class CategoryBudgetInput {
+	    categoryId: string; limitCents: number; rollover: boolean;
+	    static createFrom(source: any = {}) { return new CategoryBudgetInput(source); }
+	    constructor(source: any = {}) { if ('string' === typeof source) source=JSON.parse(source);this.categoryId=source["categoryId"];this.limitCents=source["limitCents"];this.rollover=source["rollover"]; }
+	}
+	export class MonthlyBudgetInput {
+	    referenceMonth: string; overallLimitCents: number; categoryLimits: CategoryBudgetInput[];
+	    static createFrom(source: any = {}) { return new MonthlyBudgetInput(source); }
+	    constructor(source: any = {}) { if ('string' === typeof source) source=JSON.parse(source);this.referenceMonth=source["referenceMonth"];this.overallLimitCents=source["overallLimitCents"];this.categoryLimits=(source["categoryLimits"]||[]).map((x:any)=>new CategoryBudgetInput(x)); }
+	}
 	export class BankStatementImportResult {
 	    bank: string;
 	    importedCount: number;
@@ -84,6 +104,7 @@ export namespace application {
 	    categories: domain.Category[];
 	    dashboard: domain.Dashboard;
 	    theme: string;
+	    planning: domain.Planning;
 
 	    static createFrom(source: any = {}) {
 	        return new Bootstrap(source);
@@ -97,6 +118,7 @@ export namespace application {
 	        this.categories = this.convertValues(source["categories"], domain.Category);
 	        this.dashboard = this.convertValues(source["dashboard"], domain.Dashboard);
 	        this.theme = source["theme"];
+	        this.planning = this.convertValues(source["planning"], domain.Planning);
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -704,6 +726,11 @@ export namespace domain {
 	        this.adjustmentReason = source["adjustmentReason"];
 	    }
 	}
+	export class GoalAllocation { goalId:string;accountId:string;accountName:string;amountCents:number; constructor(source:any={}){this.goalId=source["goalId"];this.accountId=source["accountId"];this.accountName=source["accountName"];this.amountCents=source["amountCents"];} }
+	export class Goal { id:string;name:string;kind:string;targetCents:number;deadline?:string;archivedAt?:string;createdAt:string;updatedAt:string;allocatedCents:number;progressPercent:number;allocations:GoalAllocation[]; constructor(source:any={}){this.id=source["id"];this.name=source["name"];this.kind=source["kind"];this.targetCents=source["targetCents"];this.deadline=source["deadline"];this.archivedAt=source["archivedAt"];this.createdAt=source["createdAt"];this.updatedAt=source["updatedAt"];this.allocatedCents=source["allocatedCents"];this.progressPercent=source["progressPercent"];this.allocations=(source["allocations"]||[]).map((x:any)=>new GoalAllocation(x));} }
+	export class CategoryBudgetLimit { id!:string;categoryId!:string;categoryName!:string;limitCents!:number;rollover!:boolean;rolloverCents!:number;spentCents!:number;availableCents!:number;exceeded!:boolean; constructor(source:any={}){Object.assign(this,source);} }
+	export class MonthlyBudget { referenceMonth:string;overallLimitCents:number;spentCents:number;remainingCents:number;progressPercent:number;categoryLimits:CategoryBudgetLimit[]; constructor(source:any={}){this.referenceMonth=source["referenceMonth"];this.overallLimitCents=source["overallLimitCents"];this.spentCents=source["spentCents"];this.remainingCents=source["remainingCents"];this.progressPercent=source["progressPercent"];this.categoryLimits=(source["categoryLimits"]||[]).map((x:any)=>new CategoryBudgetLimit(x));} }
+	export class Planning { budget?:MonthlyBudget;goals:Goal[]; constructor(source:any={}){this.budget=source["budget"]?new MonthlyBudget(source["budget"]):undefined;this.goals=(source["goals"]||[]).map((x:any)=>new Goal(x));} }
 	export class Dashboard {
 	    availableBalanceCents: number;
 	    totalBalanceCents: number;
@@ -717,6 +744,12 @@ export namespace domain {
 	    hasNegativeBalance: boolean;
 	    creditCardDebtCents: number;
 	    upcomingInvoices: CreditCardInvoice[];
+	    reservedValueCents: number;
+	    eligibleBalanceCents: number;
+	    freeValueCents: number;
+	    safelySpendableCents: number;
+	    budgetProgressPercent: number;
+	    goalProgressPercent: number;
 
 	    static createFrom(source: any = {}) {
 	        return new Dashboard(source);
@@ -736,6 +769,12 @@ export namespace domain {
 	        this.hasNegativeBalance = source["hasNegativeBalance"];
 	        this.creditCardDebtCents = source["creditCardDebtCents"];
 	        this.upcomingInvoices = this.convertValues(source["upcomingInvoices"], CreditCardInvoice);
+	        this.reservedValueCents = source["reservedValueCents"];
+	        this.eligibleBalanceCents = source["eligibleBalanceCents"];
+	        this.freeValueCents = source["freeValueCents"];
+	        this.safelySpendableCents = source["safelySpendableCents"];
+	        this.budgetProgressPercent = source["budgetProgressPercent"];
+	        this.goalProgressPercent = source["goalProgressPercent"];
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

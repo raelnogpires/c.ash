@@ -8,6 +8,8 @@ import {domain} from '../models';
 
 export function ArchiveFixedExpense(arg1:string):Promise<void>;
 
+export function ArchiveGoal(arg1:string):Promise<void>;
+
 export function AdjustAccountBalance(arg1:string,arg2:application.BalanceAdjustmentInput):Promise<domain.Transaction>;
 
 export function BackupStatus():Promise<storage.BackupStatus>;
@@ -62,6 +64,8 @@ export function ListTransactions():Promise<Array<domain.Transaction>>;
 
 export function ListTrashedTransactions():Promise<Array<domain.Transaction>>;
 
+export function Planning(arg1:string):Promise<domain.Planning>;
+
 export function PayCreditCardInvoice(arg1:string,arg2:application.CreditCardPaymentInput):Promise<domain.CreditCardPayment>;
 
 export function RecoverEncryption(arg1:application.RecoverEncryptionInput):Promise<storage.SecurityStatus>;
@@ -69,6 +73,8 @@ export function RecoverEncryption(arg1:application.RecoverEncryptionInput):Promi
 export function ReopenFixedExpenseOccurrence(arg1:string):Promise<void>;
 
 export function ResetBackupFolder():Promise<storage.BackupStatus>;
+
+export function SaveGoal(arg1:string,arg2:application.GoalInput):Promise<domain.Goal>;
 
 export function RestoreBackup(arg1:application.RestoreBackupInput):Promise<desktop.BackupDialogResult>;
 
@@ -79,6 +85,10 @@ export function RestoreTransaction(arg1:string):Promise<void>;
 export function SecurityStatus():Promise<storage.SecurityStatus>;
 
 export function SetBalancesHidden(arg1:boolean):Promise<domain.Profile>;
+
+export function SetGoalAllocations(arg1:string,arg2:Array<application.GoalAllocationInput>):Promise<domain.Goal>;
+
+export function SetMonthlyBudget(arg1:application.MonthlyBudgetInput):Promise<domain.MonthlyBudget>;
 
 export function SetTheme(arg1:domain.Theme):Promise<domain.Profile>;
 

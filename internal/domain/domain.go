@@ -73,6 +73,10 @@ var (
 	ErrOpeningBalanceLocked  = errors.New("opening balance is locked after ledger activity")
 	ErrAdjustmentReason      = errors.New("adjustment reason is required")
 	ErrNoBalanceChange       = errors.New("target balance equals current balance")
+	ErrInvalidBudget         = errors.New("invalid budget")
+	ErrInvalidGoal           = errors.New("invalid goal")
+	ErrUnknownGoal           = errors.New("unknown goal")
+	ErrAllocationLimit       = errors.New("goal allocations exceed account balance")
 )
 
 type TransactionOrigin string
@@ -257,6 +261,66 @@ type Dashboard struct {
 	HasNegativeBalance        bool                  `json:"hasNegativeBalance"`
 	CreditCardDebtCents       int64                 `json:"creditCardDebtCents"`
 	UpcomingInvoices          []CreditCardInvoice   `json:"upcomingInvoices"`
+	ReservedValueCents        int64                 `json:"reservedValueCents"`
+	EligibleBalanceCents      int64                 `json:"eligibleBalanceCents"`
+	FreeValueCents            int64                 `json:"freeValueCents"`
+	SafelySpendableCents      int64                 `json:"safelySpendableCents"`
+	BudgetProgressPercent     float64               `json:"budgetProgressPercent"`
+	GoalProgressPercent       float64               `json:"goalProgressPercent"`
+}
+
+type CategoryBudgetLimit struct {
+	ID             string `json:"id"`
+	CategoryID     string `json:"categoryId"`
+	CategoryName   string `json:"categoryName"`
+	LimitCents     int64  `json:"limitCents"`
+	Rollover       bool   `json:"rollover"`
+	RolloverCents  int64  `json:"rolloverCents"`
+	SpentCents     int64  `json:"spentCents"`
+	AvailableCents int64  `json:"availableCents"`
+	Exceeded       bool   `json:"exceeded"`
+}
+
+type MonthlyBudget struct {
+	ReferenceMonth    string                `json:"referenceMonth"`
+	OverallLimitCents int64                 `json:"overallLimitCents"`
+	SpentCents        int64                 `json:"spentCents"`
+	RemainingCents    int64                 `json:"remainingCents"`
+	ProgressPercent   float64               `json:"progressPercent"`
+	CategoryLimits    []CategoryBudgetLimit `json:"categoryLimits"`
+}
+
+type GoalKind string
+
+const (
+	GoalEmergencyReserve GoalKind = "emergency_reserve"
+	GoalSavings          GoalKind = "savings"
+)
+
+type GoalAllocation struct {
+	GoalID      string `json:"goalId"`
+	AccountID   string `json:"accountId"`
+	AccountName string `json:"accountName"`
+	AmountCents int64  `json:"amountCents"`
+}
+
+type Goal struct {
+	ID              string           `json:"id"`
+	Name            string           `json:"name"`
+	Kind            GoalKind         `json:"kind"`
+	TargetCents     int64            `json:"targetCents"`
+	Deadline        string           `json:"deadline,omitempty"`
+	ArchivedAt      string           `json:"archivedAt,omitempty"`
+	CreatedAt       string           `json:"createdAt"`
+	UpdatedAt       string           `json:"updatedAt"`
+	AllocatedCents  int64            `json:"allocatedCents"`
+	ProgressPercent float64          `json:"progressPercent"`
+	Allocations     []GoalAllocation `json:"allocations"`
+}
+
+type Planning struct {
+	Budget *MonthlyBudget `json:"budget,omitempty"`
+	Goals  []Goal         `json:"goals"`
 }
 
 func ParseCivilDate(value string) (time.Time, error) {

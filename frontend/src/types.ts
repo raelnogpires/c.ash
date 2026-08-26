@@ -11,10 +11,20 @@ export type TransactionOrigin = 'manual' | 'import' | 'fixed_expense' | 'card_pa
 export interface Transaction { id: string; kind: TransactionKind; amountCents: number; accountId: string; accountName: string; destinationAccountId?: string; destinationAccountName?: string; categoryId?: string; categoryName?: string; description: string; occurrenceDate: string; createdAt: string; updatedAt: string; deletedAt?: string; automaticImport?: boolean; importBank?: Bank; installmentCount?: number; invoicePaymentId?: string; origin?: TransactionOrigin; adjustmentReason?: string }
 export interface BalanceHistoryPoint { month: string; label: string; balanceCents: number }
 export interface AccountAllocation { accountId: string; accountName: string; balanceCents: number }
-export interface Dashboard { availableBalanceCents: number; totalBalanceCents?: number; pendingFixedExpensesCents?: number; pendingFixedExpenseCount?: number; monthlyIncomeCents: number; monthlyExpenseCents: number; recentTransactions: Transaction[]; balanceHistory?: BalanceHistoryPoint[]; accountAllocations?: AccountAllocation[]; hasNegativeBalance: boolean; creditCardDebtCents?: number; upcomingInvoices?: CreditCardInvoice[] }
-export interface BootstrapData { profile: Profile | null; setup: boolean; accounts: Account[]; categories: Category[]; dashboard: Dashboard; theme: Theme | '' }
+export interface Dashboard { availableBalanceCents: number; totalBalanceCents?: number; pendingFixedExpensesCents?: number; pendingFixedExpenseCount?: number; monthlyIncomeCents: number; monthlyExpenseCents: number; recentTransactions: Transaction[]; balanceHistory?: BalanceHistoryPoint[]; accountAllocations?: AccountAllocation[]; hasNegativeBalance: boolean; creditCardDebtCents?: number; upcomingInvoices?: CreditCardInvoice[]; reservedValueCents?: number; eligibleBalanceCents?: number; freeValueCents?: number; safelySpendableCents?: number; budgetProgressPercent?: number; goalProgressPercent?: number }
+export interface CategoryBudgetLimit { id: string; categoryId: string; categoryName: string; limitCents: number; rollover: boolean; rolloverCents: number; spentCents: number; availableCents: number; exceeded: boolean }
+export interface MonthlyBudget { referenceMonth: string; overallLimitCents: number; spentCents: number; remainingCents: number; progressPercent: number; categoryLimits: CategoryBudgetLimit[] }
+export interface GoalAllocation { goalId: string; accountId: string; accountName: string; amountCents: number }
+export type GoalKind = 'emergency_reserve' | 'savings'
+export interface Goal { id: string; name: string; kind: GoalKind; targetCents: number; deadline?: string; archivedAt?: string; createdAt: string; updatedAt: string; allocatedCents: number; progressPercent: number; allocations: GoalAllocation[] }
+export interface Planning { budget?: MonthlyBudget; goals: Goal[] }
+export interface BootstrapData { profile: Profile | null; setup: boolean; accounts: Account[]; categories: Category[]; dashboard: Dashboard; theme: Theme | ''; planning?: Planning }
 export interface AccountInput { name: string; type: AccountType; openingBalanceCents: number; openingDate: string; creditLimitCents?: number; closingDay?: number; dueDay?: number; openingDebtCents?: number; openingDebtDueDate?: string }
 export interface BalanceAdjustmentInput { targetBalanceCents: number; occurrenceDate: string; reason: string }
+export interface CategoryBudgetInput { categoryId: string; limitCents: number; rollover: boolean }
+export interface MonthlyBudgetInput { referenceMonth: string; overallLimitCents: number; categoryLimits: CategoryBudgetInput[] }
+export interface GoalInput { name: string; kind: GoalKind; targetCents: number; deadline: string }
+export interface GoalAllocationInput { accountId: string; amountCents: number }
 export interface OnboardingInput { displayName: string; currency: 'BRL'; theme: Theme; firstAccount: AccountInput }
 export interface TransactionInput { kind: TransactionKind; amountCents: number; accountId: string; destinationAccountId: string; categoryId: string; description: string; occurrenceDate: string; installmentCount?: number }
 export type CreditCardInvoiceStatus = 'open' | 'closed' | 'paid' | 'rolled_over'

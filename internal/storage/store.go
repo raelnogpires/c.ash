@@ -62,6 +62,9 @@ type Queries interface {
 	InvoiceInstallments(context.Context, string) ([]domain.CreditCardInstallment, error)
 	TransactionInstallments(context.Context, string) ([]domain.CreditCardInstallment, error)
 	InvoicePayments(context.Context, string) ([]domain.CreditCardPayment, error)
+	MonthlyBudget(context.Context, string) (*domain.MonthlyBudget, error)
+	Goals(context.Context) ([]domain.Goal, error)
+	Goal(context.Context, string) (*domain.Goal, error)
 	SaveProfile(context.Context, domain.Profile, string) error
 	SetBalancesHidden(context.Context, bool, string) error
 	InsertAccount(context.Context, domain.Account, string) error
@@ -85,6 +88,11 @@ type Queries interface {
 	DeleteTransactionInstallments(context.Context, string) error
 	UpdateTransactionInstallmentDescriptions(context.Context, string, string) error
 	InsertCreditCardPayment(context.Context, domain.CreditCardPayment) error
+	ReplaceMonthlyBudget(context.Context, domain.MonthlyBudget, string) error
+	InsertGoal(context.Context, domain.Goal, string) error
+	UpdateGoal(context.Context, domain.Goal, string) error
+	ArchiveGoal(context.Context, string, string) error
+	ReplaceGoalAllocations(context.Context, string, []domain.GoalAllocation, string) error
 }
 
 type dbQueries struct{ q sqlQuerier }
