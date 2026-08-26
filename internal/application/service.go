@@ -41,14 +41,24 @@ type OnboardingInput struct {
 }
 
 type TransactionInput struct {
-	Kind                 domain.TransactionKind `json:"kind"`
-	AmountCents          int64                  `json:"amountCents"`
-	AccountID            string                 `json:"accountId"`
-	DestinationAccountID string                 `json:"destinationAccountId"`
-	CategoryID           string                 `json:"categoryId"`
-	Description          string                 `json:"description"`
-	OccurrenceDate       string                 `json:"occurrenceDate"`
-	InstallmentCount     int                    `json:"installmentCount"`
+	Kind                 domain.TransactionKind  `json:"kind"`
+	AmountCents          int64                   `json:"amountCents"`
+	AccountID            string                  `json:"accountId"`
+	DestinationAccountID string                  `json:"destinationAccountId"`
+	CategoryID           string                  `json:"categoryId"`
+	Description          string                  `json:"description"`
+	OccurrenceDate       string                  `json:"occurrenceDate"`
+	InstallmentCount     int                     `json:"installmentCount"`
+	SubcategoryName      string                  `json:"subcategoryName"`
+	Tags                 []string                `json:"tags"`
+	Splits               []TransactionSplitInput `json:"splits"`
+	MonthlyRecurrence    bool                    `json:"monthlyRecurrence"`
+}
+
+type TransactionSplitInput struct {
+	CategoryID      string `json:"categoryId"`
+	SubcategoryName string `json:"subcategoryName"`
+	AmountCents     int64  `json:"amountCents"`
 }
 
 type BalanceAdjustmentInput struct {
@@ -346,7 +356,13 @@ func (s *Service) planning(ctx context.Context, month string, accounts []domain.
 				continue
 			}
 			budget.SpentCents += transaction.AmountCents
-			spentByCategory[transaction.CategoryID] += transaction.AmountCents
+			if len(transaction.Splits) > 0 {
+				for _, split := range transaction.Splits {
+					spentByCategory[split.CategoryID] += split.AmountCents
+				}
+			} else {
+				spentByCategory[transaction.CategoryID] += transaction.AmountCents
+			}
 		}
 		budget.RemainingCents = budget.OverallLimitCents - budget.SpentCents
 		if budget.OverallLimitCents > 0 {
@@ -360,7 +376,13 @@ func (s *Service) planning(ctx context.Context, month string, accounts []domain.
 		previousSpent := map[string]int64{}
 		for _, transaction := range transactions {
 			if transaction.Kind == domain.Expense && transaction.Origin != domain.OriginAdjustment && strings.HasPrefix(transaction.OccurrenceDate, previousMonth.AddDate(0, -1, 0).Format("2006-01")+"-") {
-				previousSpent[transaction.CategoryID] += transaction.AmountCents
+				if len(transaction.Splits) > 0 {
+					for _, split := range transaction.Splits {
+						previousSpent[split.CategoryID] += split.AmountCents
+					}
+				} else {
+					previousSpent[transaction.CategoryID] += transaction.AmountCents
+				}
 			}
 		}
 		for index := range budget.CategoryLimits {
@@ -787,8 +809,28 @@ func (s *Service) CreateTransaction(ctx context.Context, in TransactionInput) (d
 	if count == 0 {
 		count = 1
 	}
-	tx := domain.Transaction{ID: newID(), Kind: in.Kind, AmountCents: in.AmountCents, AccountID: in.AccountID, DestinationAccountID: in.DestinationAccountID, CategoryID: in.CategoryID, Description: strings.TrimSpace(in.Description), OccurrenceDate: in.OccurrenceDate, InstallmentCount: count, CreatedAt: at, UpdatedAt: at, Origin: domain.OriginManual}
+	tx := domain.Transaction{ID: newID(), Kind: in.Kind, AmountCents: in.AmountCents, AccountID: in.AccountID, DestinationAccountID: in.DestinationAccountID, CategoryID: in.CategoryID, Description: strings.TrimSpace(in.Description), OccurrenceDate: in.OccurrenceDate, InstallmentCount: count, CreatedAt: at, UpdatedAt: at, Origin: domain.OriginManual, Tags: []domain.Tag{}, Splits: []domain.TransactionSplit{}}
 	err := s.store.WithTx(ctx, func(q storage.Queries) error {
+		account, err := q.Account(ctx, tx.AccountID)
+		if err != nil || account == nil {
+			if err != nil {
+				return err
+			}
+			return domain.ErrUnknownAccount
+		}
+		if count > 1 && account.Type != domain.AccountCreditCard {
+			if in.MonthlyRecurrence || len(in.Splits) > 0 {
+				return domain.ErrInvalidInstallments
+			}
+			amounts, err := domain.InstallmentAmounts(in.AmountCents, count)
+			if err != nil {
+				return err
+			}
+			tx.AmountCents = amounts[0]
+		}
+		if err := s.prepareTransactionDetails(ctx, q, &tx, in); err != nil {
+			return err
+		}
 		if err := s.prepareTransaction(ctx, q, &tx, now); err != nil {
 			return err
 		}
@@ -806,16 +848,104 @@ func (s *Service) CreateTransaction(ctx context.Context, in TransactionInput) (d
 		if err := q.InsertTransaction(ctx, tx, at); err != nil {
 			return err
 		}
-		account, _ := q.Account(ctx, tx.AccountID)
+		if err := q.SaveTransactionDetails(ctx, tx); err != nil {
+			return err
+		}
 		if account != nil && account.Type == domain.AccountCreditCard {
 			if err := s.insertPurchaseSchedule(ctx, q, *account, tx, at); err != nil {
 				return err
+			}
+		} else if count > 1 {
+			amounts, _ := domain.InstallmentAmounts(in.AmountCents, count)
+			for index := 1; index < count; index++ {
+				occurrence := domain.TransactionOccurrence{ID: newID(), AccountID: tx.AccountID, Kind: tx.Kind, CategoryID: tx.CategoryID, SubcategoryID: tx.SubcategoryID, AmountCents: amounts[index], Description: fmt.Sprintf("%s (%d/%d)", tx.Description, index+1, count), ScheduledDate: addMonthsClamped(tx.OccurrenceDate, index), Status: "pending", InstallmentNumber: index + 1, InstallmentCount: count}
+				if err := q.InsertTransactionOccurrence(ctx, occurrence, at); err != nil {
+					return err
+				}
+			}
+		}
+		if in.MonthlyRecurrence {
+			if tx.Kind == domain.Transfer || account.Type == domain.AccountCreditCard {
+				return domain.ErrInvalidKind
+			}
+			ruleID := newID()
+			tx.RecurrenceRuleID = ruleID
+			if err := q.InsertRecurrenceRule(ctx, ruleID, tx, dateDay(tx.OccurrenceDate), at); err != nil {
+				return err
+			}
+			if err := q.SetTransactionRecurrence(ctx, tx.ID, ruleID); err != nil {
+				return err
+			}
+			for index := 1; index <= 12; index++ {
+				occurrence := domain.TransactionOccurrence{ID: newID(), RecurrenceRuleID: ruleID, AccountID: tx.AccountID, Kind: tx.Kind, CategoryID: tx.CategoryID, SubcategoryID: tx.SubcategoryID, AmountCents: tx.AmountCents, Description: tx.Description, ScheduledDate: addMonthsClamped(tx.OccurrenceDate, index), Status: "pending", InstallmentNumber: 1, InstallmentCount: 1}
+				if err := q.InsertTransactionOccurrence(ctx, occurrence, at); err != nil {
+					return err
+				}
 			}
 		}
 		return q.InsertTransactionRevision(ctx, tx, "create", at)
 	})
 	return tx, err
 }
+
+func (s *Service) prepareTransactionDetails(ctx context.Context, q storage.Queries, tx *domain.Transaction, in TransactionInput) error {
+	if strings.TrimSpace(in.SubcategoryName) != "" {
+		if tx.CategoryID == "" {
+			return domain.ErrUnknownCategory
+		}
+		subcategory, err := q.EnsureSubcategory(ctx, tx.CategoryID, in.SubcategoryName)
+		if err != nil {
+			return err
+		}
+		tx.SubcategoryID, tx.SubcategoryName = subcategory.ID, subcategory.Name
+	}
+	seen := map[string]bool{}
+	for _, name := range in.Tags {
+		normalized := strings.ToLower(strings.TrimSpace(name))
+		if normalized != "" && !seen[normalized] {
+			seen[normalized] = true
+			tx.Tags = append(tx.Tags, domain.Tag{Name: strings.TrimSpace(name)})
+		}
+	}
+	if len(in.Splits) > 0 {
+		if tx.Kind == domain.Transfer {
+			return domain.ErrInvalidSplit
+		}
+		sum := int64(0)
+		for _, item := range in.Splits {
+			category, err := q.Category(ctx, item.CategoryID)
+			if err != nil || category == nil || category.Kind != tx.Kind {
+				return domain.ErrCategoryKind
+			}
+			split := domain.TransactionSplit{ID: newID(), CategoryID: item.CategoryID, CategoryName: category.Name, AmountCents: item.AmountCents}
+			if strings.TrimSpace(item.SubcategoryName) != "" {
+				subcategory, err := q.EnsureSubcategory(ctx, item.CategoryID, item.SubcategoryName)
+				if err != nil {
+					return err
+				}
+				split.SubcategoryID, split.SubcategoryName = subcategory.ID, subcategory.Name
+			}
+			sum += item.AmountCents
+			tx.Splits = append(tx.Splits, split)
+		}
+		if sum != tx.AmountCents {
+			return domain.ErrInvalidSplit
+		}
+	}
+	return nil
+}
+
+func addMonthsClamped(value string, months int) string {
+	date, _ := domain.ParseCivilDate(value)
+	targetMonth := date.Month() + time.Month(months)
+	last := time.Date(date.Year(), targetMonth+1, 0, 0, 0, 0, 0, time.Local).Day()
+	day := date.Day()
+	if day > last {
+		day = last
+	}
+	return time.Date(date.Year(), targetMonth, day, 0, 0, 0, 0, time.Local).Format("2006-01-02")
+}
+func dateDay(value string) int { date, _ := domain.ParseCivilDate(value); return date.Day() }
 
 func (s *Service) ImportBankStatement(ctx context.Context, in BankStatementInput) (BankStatementImportResult, error) {
 	result := BankStatementImportResult{Bank: in.Bank}
@@ -962,6 +1092,12 @@ func (s *Service) UpdateTransaction(ctx context.Context, id string, in Transacti
 		updated = *current
 		updated.Kind, updated.AmountCents, updated.AccountID = in.Kind, in.AmountCents, in.AccountID
 		updated.DestinationAccountID, updated.CategoryID = in.DestinationAccountID, in.CategoryID
+		updated.SubcategoryID, updated.SubcategoryName = "", ""
+		updated.Tags = []domain.Tag{}
+		updated.Splits = []domain.TransactionSplit{}
+		if err := s.prepareTransactionDetails(ctx, q, &updated, in); err != nil {
+			return err
+		}
 		updated.InstallmentCount = in.InstallmentCount
 		if updated.InstallmentCount == 0 {
 			updated.InstallmentCount = 1
@@ -989,6 +1125,9 @@ func (s *Service) UpdateTransaction(ctx context.Context, id string, in Transacti
 		if err := q.UpdateTransaction(ctx, updated, at); err != nil {
 			return err
 		}
+		if err := q.SaveTransactionDetails(ctx, updated); err != nil {
+			return err
+		}
 		if scheduleChanged {
 			if err := q.DeleteTransactionInstallments(ctx, id); err != nil {
 				return err
@@ -1005,6 +1144,70 @@ func (s *Service) UpdateTransaction(ctx context.Context, id string, in Transacti
 		return q.InsertTransactionRevision(ctx, updated, "update", at)
 	})
 	return updated, err
+}
+
+func (s *Service) TransactionOccurrences(ctx context.Context) ([]domain.TransactionOccurrence, error) {
+	return s.store.TransactionOccurrences(ctx)
+}
+func (s *Service) ConfirmTransactionOccurrence(ctx context.Context, id string) (domain.Transaction, error) {
+	now := s.now()
+	at := now.UTC().Format(time.RFC3339Nano)
+	var tx domain.Transaction
+	err := s.store.WithTx(ctx, func(q storage.Queries) error {
+		x, err := q.TransactionOccurrence(ctx, id)
+		if err != nil {
+			return err
+		}
+		if x == nil {
+			return domain.ErrUnknownLedgerOccurrence
+		}
+		if x.Status != "pending" {
+			return domain.ErrOccurrenceClosed
+		}
+		tx = domain.Transaction{ID: newID(), Kind: x.Kind, AmountCents: x.AmountCents, AccountID: x.AccountID, CategoryID: x.CategoryID, SubcategoryID: x.SubcategoryID, Description: x.Description, OccurrenceDate: x.ScheduledDate, InstallmentCount: 1, CreatedAt: at, UpdatedAt: at, Origin: domain.OriginManual, RecurrenceRuleID: x.RecurrenceRuleID, Tags: []domain.Tag{}, Splits: []domain.TransactionSplit{}}
+		if err := s.prepareTransaction(ctx, q, &tx, now); err != nil {
+			return err
+		}
+		active, err := q.Transactions(ctx)
+		if err != nil {
+			return err
+		}
+		accounts, err := q.Accounts(ctx)
+		if err != nil {
+			return err
+		}
+		if err := domain.ValidateSavingsBalances(accounts, append(active, tx)); err != nil {
+			return err
+		}
+		if err := q.InsertTransaction(ctx, tx, at); err != nil {
+			return err
+		}
+		if err := q.SetTransactionOccurrence(ctx, id, "confirmed", tx.ID, at); err != nil {
+			return err
+		}
+		return q.InsertTransactionRevision(ctx, tx, "create", at)
+	})
+	return tx, err
+}
+func (s *Service) DismissTransactionOccurrence(ctx context.Context, id string) error {
+	at := s.now().UTC().Format(time.RFC3339Nano)
+	return s.store.WithTx(ctx, func(q storage.Queries) error {
+		x, err := q.TransactionOccurrence(ctx, id)
+		if err != nil {
+			return err
+		}
+		if x == nil {
+			return domain.ErrUnknownLedgerOccurrence
+		}
+		if x.Status != "pending" {
+			return domain.ErrOccurrenceClosed
+		}
+		return q.SetTransactionOccurrence(ctx, id, "dismissed", "", at)
+	})
+}
+func (s *Service) ArchiveRecurrence(ctx context.Context, id string) error {
+	at := s.now().UTC().Format(time.RFC3339Nano)
+	return s.store.WithTx(ctx, func(q storage.Queries) error { return q.ArchiveRecurrenceRule(ctx, id, at) })
 }
 
 func (s *Service) TrashTransaction(ctx context.Context, id string) error {

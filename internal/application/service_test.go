@@ -449,6 +449,45 @@ func TestPlanning_BudgetsRolloverGoalsAndAllocationLimits(t *testing.T) {
 	}
 }
 
+func TestTransactionCapabilities_SplitsTagsInstallmentsAndRecurrence(t *testing.T) {
+	service, store := testService(t)
+	ctx := context.Background()
+	account, err := service.CreateAccount(ctx, AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 10000, OpeningDate: "2026-08-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 1000, AccountID: account.ID, CategoryID: "food", Description: "Compras", OccurrenceDate: "2026-08-16", Tags: []string{"Casa", "casa", " urgente "}, Splits: []TransactionSplitInput{{CategoryID: "food", AmountCents: 600}, {CategoryID: "bills", SubcategoryName: "Energia", AmountCents: 400}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := store.Transaction(ctx, tx.ID)
+	if err != nil || stored == nil || len(stored.Tags) != 2 || len(stored.Splits) != 2 || stored.Splits[1].SubcategoryName != "Energia" {
+		t.Fatalf("stored=%+v err=%v", stored, err)
+	}
+	if _, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 1000, AccountID: account.ID, Description: "Inválida", OccurrenceDate: "2026-08-16", Splits: []TransactionSplitInput{{CategoryID: "food", AmountCents: 999}}}); !errors.Is(err, domain.ErrInvalidSplit) {
+		t.Fatalf("split error=%v", err)
+	}
+	installment, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 100, AccountID: account.ID, CategoryID: "food", Description: "Curso", OccurrenceDate: "2026-08-16", InstallmentCount: 3})
+	if err != nil || installment.AmountCents != 34 {
+		t.Fatalf("installment=%+v err=%v", installment, err)
+	}
+	occurrences, err := service.TransactionOccurrences(ctx)
+	if err != nil || len(occurrences) != 2 || occurrences[0].AmountCents != 33 {
+		t.Fatalf("occurrences=%+v err=%v", occurrences, err)
+	}
+	service.now = func() time.Time { return time.Date(2026, time.October, 20, 12, 0, 0, 0, time.Local) }
+	if _, err := service.ConfirmTransactionOccurrence(ctx, occurrences[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	recurring, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Income, AmountCents: 500, AccountID: account.ID, CategoryID: "salary", Description: "Mensal", OccurrenceDate: "2026-08-16", MonthlyRecurrence: true})
+	if err != nil || recurring.RecurrenceRuleID == "" {
+		t.Fatalf("recurring=%+v err=%v", recurring, err)
+	}
+	if got := addMonthsClamped("2024-01-31", 1); got != "2024-02-29" {
+		t.Fatalf("month end=%s", got)
+	}
+}
+
 func TestDeleteAccount_BlocksUsageAndAllowsLastAccount(t *testing.T) {
 	service, _ := testService(t)
 	ctx := context.Background()

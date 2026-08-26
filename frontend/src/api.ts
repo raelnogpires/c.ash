@@ -1,4 +1,4 @@
-import type { Account, AccountInput, BackupDialogResult, BackupStatus, BalanceAdjustmentInput, BankStatementImportResult, BankStatementInput, BootstrapData, ChangeEncryptionPasswordInput, ConfirmFixedExpenseOccurrenceInput, CreditCardPayment, CreditCardPaymentInput, CreditCardsOverview, EncryptionInput, EncryptionResult, FixedExpense, FixedExpenseInput, FixedExpensesOverview, Goal, GoalAllocationInput, GoalInput, MonthlyBudget, MonthlyBudgetInput, OnboardingInput, OperationResult, Planning, Profile, RecoverEncryptionInput, RestoreBackupInput, SecurityStatus, Theme, Transaction, TransactionInput, UnlockInput, UpdateStatus } from './types'
+import type { Account, AccountInput, BackupDialogResult, BackupStatus, BalanceAdjustmentInput, BankStatementImportResult, BankStatementInput, BootstrapData, ChangeEncryptionPasswordInput, ConfirmFixedExpenseOccurrenceInput, CreditCardPayment, CreditCardPaymentInput, CreditCardsOverview, EncryptionInput, EncryptionResult, FixedExpense, FixedExpenseInput, FixedExpensesOverview, Goal, GoalAllocationInput, GoalInput, MonthlyBudget, MonthlyBudgetInput, OnboardingInput, OperationResult, Planning, Profile, RecoverEncryptionInput, RestoreBackupInput, SecurityStatus, Theme, Transaction, TransactionInput, TransactionOccurrence, UnlockInput, UpdateStatus } from './types'
 import * as bindings from './wailsjs/go/desktop/App'
 import { application } from './wailsjs/go/models'
 
@@ -17,6 +17,10 @@ interface CashAPI {
   DeleteAccount(id: string): Promise<void>
   CreateTransaction(input: TransactionInput): Promise<Transaction>
   UpdateTransaction(id: string, input: TransactionInput): Promise<Transaction>
+  TransactionOccurrences(): Promise<TransactionOccurrence[]>
+  ConfirmTransactionOccurrence(id:string):Promise<Transaction>
+  DismissTransactionOccurrence(id:string):Promise<void>
+  ArchiveRecurrence(id:string):Promise<void>
   TrashTransaction(id: string): Promise<void>
   RestoreTransaction(id: string): Promise<void>
   DeleteTransactionPermanently(id: string): Promise<void>
@@ -69,6 +73,10 @@ export const api: CashAPI = {
   DeleteAccount: async (id) => await bindings.DeleteAccount(id),
   CreateTransaction: async (input) => await bindings.CreateTransaction(new application.TransactionInput(input)) as unknown as Transaction,
   UpdateTransaction: async (id, input) => await bindings.UpdateTransaction(id, new application.TransactionInput(input)) as unknown as Transaction,
+  TransactionOccurrences: async()=>await bindings.TransactionOccurrences() as unknown as TransactionOccurrence[],
+  ConfirmTransactionOccurrence: async(id)=>await bindings.ConfirmTransactionOccurrence(id) as unknown as Transaction,
+  DismissTransactionOccurrence: async(id)=>await bindings.DismissTransactionOccurrence(id),
+  ArchiveRecurrence: async(id)=>await bindings.ArchiveRecurrence(id),
   TrashTransaction: async (id) => await bindings.TrashTransaction(id),
   RestoreTransaction: async (id) => await bindings.RestoreTransaction(id),
   DeleteTransactionPermanently: async (id) => await bindings.DeleteTransactionPermanently(id),

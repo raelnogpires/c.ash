@@ -262,6 +262,20 @@ func (a *App) CreateTransaction(in application.TransactionInput) (domain.Transac
 	v, err := a.service.CreateTransaction(a.context(), in)
 	return v, safe(err)
 }
+func (a *App) TransactionOccurrences() ([]domain.TransactionOccurrence, error) {
+	v, err := a.service.TransactionOccurrences(a.context())
+	return v, safe(err)
+}
+func (a *App) ConfirmTransactionOccurrence(id string) (domain.Transaction, error) {
+	v, err := a.service.ConfirmTransactionOccurrence(a.context(), id)
+	return v, safe(err)
+}
+func (a *App) DismissTransactionOccurrence(id string) error {
+	return safe(a.service.DismissTransactionOccurrence(a.context(), id))
+}
+func (a *App) ArchiveRecurrence(id string) error {
+	return safe(a.service.ArchiveRecurrence(a.context(), id))
+}
 func (a *App) UpdateTransaction(id string, in application.TransactionInput) (domain.Transaction, error) {
 	v, err := a.service.UpdateTransaction(a.context(), id, in)
 	return v, safe(err)
@@ -384,6 +398,8 @@ func safe(err error) error {
 		{domain.ErrInvalidGoal, "Revise o nome, tipo e valor da meta."},
 		{domain.ErrUnknownGoal, "Esta meta não existe mais."},
 		{domain.ErrAllocationLimit, "As reservas desta conta não podem superar o saldo disponível."},
+		{domain.ErrInvalidSplit, "As divisões devem somar exatamente o valor da movimentação."},
+		{domain.ErrUnknownLedgerOccurrence, "Esta ocorrência não existe mais."},
 		{storage.ErrLocked, "Desbloqueie o banco de dados para continuar."},
 		{storage.ErrInvalidCredential, "Senha ou chave de recuperação incorreta."},
 		{storage.ErrWeakPassword, "Use uma senha com pelo menos 12 caracteres."},

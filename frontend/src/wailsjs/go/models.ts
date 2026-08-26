@@ -360,6 +360,10 @@ export namespace application {
 	    description: string;
 	    occurrenceDate: string;
 	    installmentCount: number;
+	    subcategoryName: string;
+	    tags: string[];
+	    splits: TransactionSplitInput[];
+	    monthlyRecurrence: boolean;
 
 	    static createFrom(source: any = {}) {
 	        return new TransactionInput(source);
@@ -375,8 +379,13 @@ export namespace application {
 	        this.description = source["description"];
 	        this.occurrenceDate = source["occurrenceDate"];
 	        this.installmentCount = source["installmentCount"];
+	        this.subcategoryName = source["subcategoryName"];
+	        this.tags = source["tags"] || [];
+	        this.splits = (source["splits"]||[]).map((x:any)=>new TransactionSplitInput(x));
+	        this.monthlyRecurrence = source["monthlyRecurrence"];
 	    }
 	}
+	export class TransactionSplitInput { categoryId:string;subcategoryName:string;amountCents:number; constructor(source:any={}){this.categoryId=source["categoryId"];this.subcategoryName=source["subcategoryName"];this.amountCents=source["amountCents"];} }
 	export class UnlockInput {
 	    password: string;
 	    recoveryKey: string;
@@ -726,6 +735,7 @@ export namespace domain {
 	        this.adjustmentReason = source["adjustmentReason"];
 	    }
 	}
+	export class TransactionOccurrence { id:string;recurrenceRuleId?:string;accountId:string;accountName:string;kind:string;categoryId?:string;categoryName?:string;amountCents:number;description:string;scheduledDate:string;status:string;transactionId?:string;installmentNumber:number;installmentCount:number;constructor(source:any={}){Object.assign(this,source);this.id=source.id;this.accountId=source.accountId;this.accountName=source.accountName;this.kind=source.kind;this.amountCents=source.amountCents;this.description=source.description;this.scheduledDate=source.scheduledDate;this.status=source.status;this.installmentNumber=source.installmentNumber;this.installmentCount=source.installmentCount;} }
 	export class GoalAllocation { goalId:string;accountId:string;accountName:string;amountCents:number; constructor(source:any={}){this.goalId=source["goalId"];this.accountId=source["accountId"];this.accountName=source["accountName"];this.amountCents=source["amountCents"];} }
 	export class Goal { id:string;name:string;kind:string;targetCents:number;deadline?:string;archivedAt?:string;createdAt:string;updatedAt:string;allocatedCents:number;progressPercent:number;allocations:GoalAllocation[]; constructor(source:any={}){this.id=source["id"];this.name=source["name"];this.kind=source["kind"];this.targetCents=source["targetCents"];this.deadline=source["deadline"];this.archivedAt=source["archivedAt"];this.createdAt=source["createdAt"];this.updatedAt=source["updatedAt"];this.allocatedCents=source["allocatedCents"];this.progressPercent=source["progressPercent"];this.allocations=(source["allocations"]||[]).map((x:any)=>new GoalAllocation(x));} }
 	export class CategoryBudgetLimit { id!:string;categoryId!:string;categoryName!:string;limitCents!:number;rollover!:boolean;rolloverCents!:number;spentCents!:number;availableCents!:number;exceeded!:boolean; constructor(source:any={}){Object.assign(this,source);} }

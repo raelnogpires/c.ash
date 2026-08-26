@@ -49,6 +49,8 @@ type Queries interface {
 	AccountTransactions(context.Context, string) ([]domain.Transaction, error)
 	Categories(context.Context) ([]domain.Category, error)
 	Category(context.Context, string) (*domain.Category, error)
+	Subcategories(context.Context) ([]domain.Subcategory, error)
+	EnsureSubcategory(context.Context, string, string) (domain.Subcategory, error)
 	Transactions(context.Context) ([]domain.Transaction, error)
 	TrashedTransactions(context.Context) ([]domain.Transaction, error)
 	Transaction(context.Context, string) (*domain.Transaction, error)
@@ -93,6 +95,14 @@ type Queries interface {
 	UpdateGoal(context.Context, domain.Goal, string) error
 	ArchiveGoal(context.Context, string, string) error
 	ReplaceGoalAllocations(context.Context, string, []domain.GoalAllocation, string) error
+	SaveTransactionDetails(context.Context, domain.Transaction) error
+	InsertRecurrenceRule(context.Context, string, domain.Transaction, int, string) error
+	InsertTransactionOccurrence(context.Context, domain.TransactionOccurrence, string) error
+	TransactionOccurrences(context.Context) ([]domain.TransactionOccurrence, error)
+	TransactionOccurrence(context.Context, string) (*domain.TransactionOccurrence, error)
+	SetTransactionOccurrence(context.Context, string, string, string, string) error
+	ArchiveRecurrenceRule(context.Context, string, string) error
+	SetTransactionRecurrence(context.Context, string, string) error
 }
 
 type dbQueries struct{ q sqlQuerier }
@@ -490,11 +500,13 @@ COALESCE(t.category_id, ''), COALESCE(c.name, ''), t.description,
 t.occurrence_date, t.created_at, t.updated_at, COALESCE(t.deleted_at, ''),
 COALESCE(t.fixed_expense_occurrence_id, ''), t.automatic_import,
 COALESCE(t.import_bank, ''), COALESCE(t.import_key, ''), t.installment_count,
-COALESCE(t.invoice_payment_id, ''), t.origin, COALESCE(t.adjustment_reason, '')
+COALESCE(t.invoice_payment_id, ''), t.origin, COALESCE(t.adjustment_reason, ''),
+COALESCE(t.subcategory_id, ''), COALESCE(sc.name, ''), COALESCE(t.recurrence_rule_id, '')
 FROM transactions t
 JOIN accounts a ON a.id=t.account_id
 LEFT JOIN accounts destination ON destination.id=t.destination_account_id
-LEFT JOIN categories c ON c.id=t.category_id`
+LEFT JOIN categories c ON c.id=t.category_id
+LEFT JOIN subcategories sc ON sc.id=t.subcategory_id`
 
 func scanTransaction(scanner interface{ Scan(...any) error }) (domain.Transaction, error) {
 	var t domain.Transaction
@@ -502,18 +514,22 @@ func scanTransaction(scanner interface{ Scan(...any) error }) (domain.Transactio
 		&t.DestinationAccountID, &t.DestinationAccountName, &t.CategoryID, &t.CategoryName,
 		&t.Description, &t.OccurrenceDate, &t.CreatedAt, &t.UpdatedAt, &t.DeletedAt, &t.FixedExpenseOccurrenceID,
 		&t.AutomaticImport, &t.ImportBank, &t.ImportKey, &t.InstallmentCount, &t.InvoicePaymentID,
-		&t.Origin, &t.AdjustmentReason)
+		&t.Origin, &t.AdjustmentReason, &t.SubcategoryID, &t.SubcategoryName, &t.RecurrenceRuleID)
+	t.Tags = []domain.Tag{}
+	t.Splits = []domain.TransactionSplit{}
 	return t, err
 }
 
 func (q *dbQueries) Transactions(ctx context.Context) ([]domain.Transaction, error) {
 	rows, err := q.q.QueryContext(ctx, transactionSelect+` WHERE t.deleted_at IS NULL ORDER BY t.occurrence_date DESC, t.created_at DESC`)
-	return scanTransactions(rows, err)
+	items, err := scanTransactions(rows, err)
+	return items, q.hydrateTransactions(ctx, items, err)
 }
 
 func (q *dbQueries) TrashedTransactions(ctx context.Context) ([]domain.Transaction, error) {
 	rows, err := q.q.QueryContext(ctx, transactionSelect+` WHERE t.deleted_at IS NOT NULL ORDER BY t.deleted_at DESC, t.occurrence_date DESC, t.created_at DESC`)
-	return scanTransactions(rows, err)
+	items, err := scanTransactions(rows, err)
+	return items, q.hydrateTransactions(ctx, items, err)
 }
 
 func scanTransactions(rows *sql.Rows, err error) ([]domain.Transaction, error) {
@@ -537,7 +553,18 @@ func (q *dbQueries) Transaction(ctx context.Context, id string) (*domain.Transac
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
-	return &t, err
+	items := []domain.Transaction{t}
+	if err = q.hydrateTransactions(ctx, items, err); err != nil {
+		return nil, err
+	}
+	return &items[0], nil
+}
+
+func nullable(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 func (q *dbQueries) SaveProfile(ctx context.Context, p domain.Profile, at string) error {
@@ -622,7 +649,14 @@ func (q *dbQueries) InsertTransaction(ctx context.Context, t domain.Transaction,
 	if t.AdjustmentReason != "" {
 		adjustmentReason = t.AdjustmentReason
 	}
-	_, err := q.q.ExecContext(ctx, `INSERT INTO transactions(id,kind,amount_cents,account_id,destination_account_id,category_id,description,occurrence_date,created_at,updated_at,fixed_expense_occurrence_id,automatic_import,import_bank,import_key,installment_count,invoice_payment_id,origin,adjustment_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t.ID, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, at, at, fixedOccurrence, t.AutomaticImport, importBank, importKey, count, payment, origin, adjustmentReason)
+	var subcategory, recurrence any
+	if t.SubcategoryID != "" {
+		subcategory = t.SubcategoryID
+	}
+	if t.RecurrenceRuleID != "" {
+		recurrence = t.RecurrenceRuleID
+	}
+	_, err := q.q.ExecContext(ctx, `INSERT INTO transactions(id,kind,amount_cents,account_id,destination_account_id,category_id,description,occurrence_date,created_at,updated_at,fixed_expense_occurrence_id,automatic_import,import_bank,import_key,installment_count,invoice_payment_id,origin,adjustment_reason,subcategory_id,recurrence_rule_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t.ID, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, at, at, fixedOccurrence, t.AutomaticImport, importBank, importKey, count, payment, origin, adjustmentReason, subcategory, recurrence)
 	return err
 }
 
@@ -638,7 +672,7 @@ func (q *dbQueries) UpdateTransaction(ctx context.Context, t domain.Transaction,
 	if count == 0 {
 		count = 1
 	}
-	result, err := q.q.ExecContext(ctx, `UPDATE transactions SET kind=?, amount_cents=?, account_id=?, destination_account_id=?, category_id=?, description=?, occurrence_date=?, installment_count=?, adjustment_reason=?, updated_at=? WHERE id=?`, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, count, t.AdjustmentReason, at, t.ID)
+	result, err := q.q.ExecContext(ctx, `UPDATE transactions SET kind=?, amount_cents=?, account_id=?, destination_account_id=?, category_id=?, subcategory_id=?, description=?, occurrence_date=?, installment_count=?, adjustment_reason=?, updated_at=? WHERE id=?`, t.Kind, t.AmountCents, t.AccountID, destination, category, nullable(t.SubcategoryID), t.Description, t.OccurrenceDate, count, t.AdjustmentReason, at, t.ID)
 	if err != nil {
 		return err
 	}

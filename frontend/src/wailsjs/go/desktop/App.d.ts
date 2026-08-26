@@ -10,6 +10,8 @@ export function ArchiveFixedExpense(arg1:string):Promise<void>;
 
 export function ArchiveGoal(arg1:string):Promise<void>;
 
+export function ArchiveRecurrence(arg1:string):Promise<void>;
+
 export function AdjustAccountBalance(arg1:string,arg2:application.BalanceAdjustmentInput):Promise<domain.Transaction>;
 
 export function BackupStatus():Promise<storage.BackupStatus>;
@@ -25,6 +27,8 @@ export function ChooseBackupFolder():Promise<desktop.OperationResult>;
 export function CompleteOnboarding(arg1:application.OnboardingInput):Promise<domain.Profile>;
 
 export function ConfirmFixedExpenseOccurrence(arg1:string,arg2:application.ConfirmFixedExpenseOccurrenceInput):Promise<domain.Transaction>;
+
+export function ConfirmTransactionOccurrence(arg1:string):Promise<domain.Transaction>;
 
 export function CreateAccount(arg1:application.AccountInput):Promise<domain.Account>;
 
@@ -43,6 +47,8 @@ export function DeleteTransactionPermanently(arg1:string):Promise<void>;
 export function DisableEncryption(arg1:application.UnlockInput):Promise<storage.SecurityStatus>;
 
 export function DismissFixedExpenseOccurrence(arg1:string):Promise<void>;
+
+export function DismissTransactionOccurrence(arg1:string):Promise<void>;
 
 export function EmptyTransactionTrash():Promise<void>;
 
@@ -97,6 +103,8 @@ export function SetVersion(arg1:string):Promise<void>;
 export function SkipOnboarding():Promise<domain.Profile>;
 
 export function TrashTransaction(arg1:string):Promise<void>;
+
+export function TransactionOccurrences():Promise<Array<domain.TransactionOccurrence>>;
 
 export function UnlockDatabase(arg1:application.UnlockInput):Promise<storage.SecurityStatus>;
 

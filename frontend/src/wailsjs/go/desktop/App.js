@@ -7,6 +7,10 @@ export function ArchiveFixedExpense(arg1) {
 }
 
 export function ArchiveGoal(arg1) { return window['go']['desktop']['App']['ArchiveGoal'](arg1); }
+export function ArchiveRecurrence(arg1) { return window['go']['desktop']['App']['ArchiveRecurrence'](arg1); }
+export function ConfirmTransactionOccurrence(arg1) { return window['go']['desktop']['App']['ConfirmTransactionOccurrence'](arg1); }
+export function DismissTransactionOccurrence(arg1) { return window['go']['desktop']['App']['DismissTransactionOccurrence'](arg1); }
+export function TransactionOccurrences() { return window['go']['desktop']['App']['TransactionOccurrences'](); }
 
 export function AdjustAccountBalance(arg1, arg2) {
   return window['go']['desktop']['App']['AdjustAccountBalance'](arg1, arg2);

@@ -34,49 +34,51 @@ const (
 )
 
 var (
-	ErrBlankName             = errors.New("blank name")
-	ErrBlankDescription      = errors.New("blank description")
-	ErrInvalidAmount         = errors.New("amount must be positive")
-	ErrInvalidDate           = errors.New("invalid civil date")
-	ErrFutureDate            = errors.New("date is in the future")
-	ErrBeforeOpening         = errors.New("date is before account opening")
-	ErrInvalidAccountType    = errors.New("invalid account type")
-	ErrInvalidKind           = errors.New("invalid transaction kind")
-	ErrInvalidTheme          = errors.New("invalid theme")
-	ErrUnknownAccount        = errors.New("unknown account")
-	ErrAccountInUse          = errors.New("account is in use")
-	ErrUnknownCategory       = errors.New("unknown category")
-	ErrCategoryKind          = errors.New("category kind does not match transaction")
-	ErrSameTransferAccount   = errors.New("transfer accounts must be distinct")
-	ErrTransferCategory      = errors.New("transfer cannot have category")
-	ErrSavingsNegative       = errors.New("savings account cannot be negative")
-	ErrUnknownTransaction    = errors.New("unknown transaction")
-	ErrTransactionActive     = errors.New("transaction is already active")
-	ErrTransactionTrashed    = errors.New("transaction is already trashed")
-	ErrInvalidDueDay         = errors.New("invalid due day")
-	ErrUnknownFixedExpense   = errors.New("unknown fixed expense")
-	ErrUnknownOccurrence     = errors.New("unknown fixed expense occurrence")
-	ErrOccurrenceClosed      = errors.New("fixed expense occurrence is not pending")
-	ErrFixedExpenseArchived  = errors.New("fixed expense is archived")
-	ErrInvalidStatement      = errors.New("invalid bank statement")
-	ErrUnsupportedBank       = errors.New("unsupported bank")
-	ErrStatementEmpty        = errors.New("bank statement has no transactions")
-	ErrStatementTooLarge     = errors.New("bank statement is too large")
-	ErrInvalidCreditLimit    = errors.New("invalid credit limit")
-	ErrInvalidInstallments   = errors.New("invalid installment count")
-	ErrCardTransaction       = errors.New("invalid credit card transaction")
-	ErrInvoiceLocked         = errors.New("credit card invoice is locked")
-	ErrUnknownInvoice        = errors.New("unknown credit card invoice")
-	ErrInvoiceNotPayable     = errors.New("credit card invoice is not payable")
-	ErrInvalidPaymentAccount = errors.New("invalid invoice payment account")
-	ErrInvoiceOverpayment    = errors.New("invoice payment exceeds outstanding amount")
-	ErrOpeningBalanceLocked  = errors.New("opening balance is locked after ledger activity")
-	ErrAdjustmentReason      = errors.New("adjustment reason is required")
-	ErrNoBalanceChange       = errors.New("target balance equals current balance")
-	ErrInvalidBudget         = errors.New("invalid budget")
-	ErrInvalidGoal           = errors.New("invalid goal")
-	ErrUnknownGoal           = errors.New("unknown goal")
-	ErrAllocationLimit       = errors.New("goal allocations exceed account balance")
+	ErrBlankName               = errors.New("blank name")
+	ErrBlankDescription        = errors.New("blank description")
+	ErrInvalidAmount           = errors.New("amount must be positive")
+	ErrInvalidDate             = errors.New("invalid civil date")
+	ErrFutureDate              = errors.New("date is in the future")
+	ErrBeforeOpening           = errors.New("date is before account opening")
+	ErrInvalidAccountType      = errors.New("invalid account type")
+	ErrInvalidKind             = errors.New("invalid transaction kind")
+	ErrInvalidTheme            = errors.New("invalid theme")
+	ErrUnknownAccount          = errors.New("unknown account")
+	ErrAccountInUse            = errors.New("account is in use")
+	ErrUnknownCategory         = errors.New("unknown category")
+	ErrCategoryKind            = errors.New("category kind does not match transaction")
+	ErrSameTransferAccount     = errors.New("transfer accounts must be distinct")
+	ErrTransferCategory        = errors.New("transfer cannot have category")
+	ErrSavingsNegative         = errors.New("savings account cannot be negative")
+	ErrUnknownTransaction      = errors.New("unknown transaction")
+	ErrTransactionActive       = errors.New("transaction is already active")
+	ErrTransactionTrashed      = errors.New("transaction is already trashed")
+	ErrInvalidDueDay           = errors.New("invalid due day")
+	ErrUnknownFixedExpense     = errors.New("unknown fixed expense")
+	ErrUnknownOccurrence       = errors.New("unknown fixed expense occurrence")
+	ErrOccurrenceClosed        = errors.New("fixed expense occurrence is not pending")
+	ErrFixedExpenseArchived    = errors.New("fixed expense is archived")
+	ErrInvalidStatement        = errors.New("invalid bank statement")
+	ErrUnsupportedBank         = errors.New("unsupported bank")
+	ErrStatementEmpty          = errors.New("bank statement has no transactions")
+	ErrStatementTooLarge       = errors.New("bank statement is too large")
+	ErrInvalidCreditLimit      = errors.New("invalid credit limit")
+	ErrInvalidInstallments     = errors.New("invalid installment count")
+	ErrCardTransaction         = errors.New("invalid credit card transaction")
+	ErrInvoiceLocked           = errors.New("credit card invoice is locked")
+	ErrUnknownInvoice          = errors.New("unknown credit card invoice")
+	ErrInvoiceNotPayable       = errors.New("credit card invoice is not payable")
+	ErrInvalidPaymentAccount   = errors.New("invalid invoice payment account")
+	ErrInvoiceOverpayment      = errors.New("invoice payment exceeds outstanding amount")
+	ErrOpeningBalanceLocked    = errors.New("opening balance is locked after ledger activity")
+	ErrAdjustmentReason        = errors.New("adjustment reason is required")
+	ErrNoBalanceChange         = errors.New("target balance equals current balance")
+	ErrInvalidBudget           = errors.New("invalid budget")
+	ErrInvalidGoal             = errors.New("invalid goal")
+	ErrUnknownGoal             = errors.New("unknown goal")
+	ErrAllocationLimit         = errors.New("goal allocations exceed account balance")
+	ErrInvalidSplit            = errors.New("transaction splits must sum to the amount")
+	ErrUnknownLedgerOccurrence = errors.New("unknown transaction occurrence")
 )
 
 type TransactionOrigin string
@@ -117,29 +119,73 @@ type Category struct {
 	Kind TransactionKind `json:"kind"`
 }
 
+type Subcategory struct {
+	ID         string `json:"id"`
+	CategoryID string `json:"categoryId"`
+	Name       string `json:"name"`
+}
+type Tag struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	NormalizedName string `json:"-"`
+}
+type TransactionSplit struct {
+	ID              string `json:"id"`
+	CategoryID      string `json:"categoryId"`
+	CategoryName    string `json:"categoryName"`
+	SubcategoryID   string `json:"subcategoryId,omitempty"`
+	SubcategoryName string `json:"subcategoryName,omitempty"`
+	AmountCents     int64  `json:"amountCents"`
+}
+
 type Transaction struct {
-	ID                       string            `json:"id"`
-	Kind                     TransactionKind   `json:"kind"`
-	AmountCents              int64             `json:"amountCents"`
-	AccountID                string            `json:"accountId"`
-	AccountName              string            `json:"accountName"`
-	DestinationAccountID     string            `json:"destinationAccountId,omitempty"`
-	DestinationAccountName   string            `json:"destinationAccountName,omitempty"`
-	CategoryID               string            `json:"categoryId,omitempty"`
-	CategoryName             string            `json:"categoryName,omitempty"`
-	Description              string            `json:"description"`
-	OccurrenceDate           string            `json:"occurrenceDate"`
-	CreatedAt                string            `json:"createdAt"`
-	UpdatedAt                string            `json:"updatedAt"`
-	DeletedAt                string            `json:"deletedAt,omitempty"`
-	FixedExpenseOccurrenceID string            `json:"fixedExpenseOccurrenceId,omitempty"`
-	AutomaticImport          bool              `json:"automaticImport"`
-	ImportBank               string            `json:"importBank,omitempty"`
-	ImportKey                string            `json:"-"`
-	InstallmentCount         int               `json:"installmentCount,omitempty"`
-	InvoicePaymentID         string            `json:"invoicePaymentId,omitempty"`
-	Origin                   TransactionOrigin `json:"origin"`
-	AdjustmentReason         string            `json:"adjustmentReason,omitempty"`
+	ID                       string             `json:"id"`
+	Kind                     TransactionKind    `json:"kind"`
+	AmountCents              int64              `json:"amountCents"`
+	AccountID                string             `json:"accountId"`
+	AccountName              string             `json:"accountName"`
+	DestinationAccountID     string             `json:"destinationAccountId,omitempty"`
+	DestinationAccountName   string             `json:"destinationAccountName,omitempty"`
+	CategoryID               string             `json:"categoryId,omitempty"`
+	CategoryName             string             `json:"categoryName,omitempty"`
+	Description              string             `json:"description"`
+	OccurrenceDate           string             `json:"occurrenceDate"`
+	CreatedAt                string             `json:"createdAt"`
+	UpdatedAt                string             `json:"updatedAt"`
+	DeletedAt                string             `json:"deletedAt,omitempty"`
+	FixedExpenseOccurrenceID string             `json:"fixedExpenseOccurrenceId,omitempty"`
+	AutomaticImport          bool               `json:"automaticImport"`
+	ImportBank               string             `json:"importBank,omitempty"`
+	ImportKey                string             `json:"-"`
+	InstallmentCount         int                `json:"installmentCount,omitempty"`
+	InvoicePaymentID         string             `json:"invoicePaymentId,omitempty"`
+	Origin                   TransactionOrigin  `json:"origin"`
+	AdjustmentReason         string             `json:"adjustmentReason,omitempty"`
+	SubcategoryID            string             `json:"subcategoryId,omitempty"`
+	SubcategoryName          string             `json:"subcategoryName,omitempty"`
+	Tags                     []Tag              `json:"tags"`
+	Splits                   []TransactionSplit `json:"splits"`
+	RecurrenceRuleID         string             `json:"recurrenceRuleId,omitempty"`
+}
+
+type TransactionOccurrence struct {
+	ID                string          `json:"id"`
+	RecurrenceRuleID  string          `json:"recurrenceRuleId,omitempty"`
+	AccountID         string          `json:"accountId"`
+	AccountName       string          `json:"accountName"`
+	Kind              TransactionKind `json:"kind"`
+	CategoryID        string          `json:"categoryId,omitempty"`
+	CategoryName      string          `json:"categoryName,omitempty"`
+	SubcategoryID     string          `json:"subcategoryId,omitempty"`
+	AmountCents       int64           `json:"amountCents"`
+	Description       string          `json:"description"`
+	ScheduledDate     string          `json:"scheduledDate"`
+	Status            string          `json:"status"`
+	TransactionID     string          `json:"transactionId,omitempty"`
+	InstallmentNumber int             `json:"installmentNumber"`
+	InstallmentCount  int             `json:"installmentCount"`
+	CreatedAt         string          `json:"createdAt"`
+	UpdatedAt         string          `json:"updatedAt"`
 }
 
 type CreditCardInvoiceStatus string
@@ -407,8 +453,6 @@ func ValidateTransaction(tx Transaction, account Account, destination *Account, 
 		if tx.Kind != Expense || destination != nil || tx.InvoicePaymentID != "" {
 			return ErrCardTransaction
 		}
-	} else if tx.InstallmentCount != 1 {
-		return ErrInvalidInstallments
 	}
 	if tx.Kind != Transfer && strings.TrimSpace(tx.Description) == "" {
 		return ErrBlankDescription
