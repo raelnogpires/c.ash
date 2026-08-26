@@ -1,6 +1,6 @@
-import type { Account, AccountInput, BackupDialogResult, BackupStatus, BalanceAdjustmentInput, BankStatementImportResult, BankStatementInput, BootstrapData, ChangeEncryptionPasswordInput, ConfirmFixedExpenseOccurrenceInput, CreditCardPayment, CreditCardPaymentInput, CreditCardsOverview, EncryptionInput, EncryptionResult, FixedExpense, FixedExpenseInput, FixedExpensesOverview, Goal, GoalAllocationInput, GoalInput, MonthlyBudget, MonthlyBudgetInput, OnboardingInput, OperationResult, Planning, Profile, RecoverEncryptionInput, RestoreBackupInput, SecurityStatus, Theme, Transaction, TransactionInput, TransactionOccurrence, UnlockInput, UpdateStatus } from './types'
+import type { Account, AccountInput, BackupDialogResult, BackupStatus, BalanceAdjustmentInput, BankStatementImportResult, BankStatementInput, BootstrapData, ChangeEncryptionPasswordInput, ConfirmFixedExpenseOccurrenceInput, CreditCardPayment, CreditCardPaymentInput, CreditCardsOverview, EncryptionInput, EncryptionResult, FixedExpense, FixedExpenseInput, FixedExpensesOverview, Goal, GoalAllocationInput, GoalInput, MonthlyBudget, MonthlyBudgetInput, OnboardingInput, OperationResult, Planning, Profile, RecoverEncryptionInput, RestoreBackupInput, SecurityStatus, Theme, Transaction, TransactionFilter, TransactionInput, TransactionOccurrence, UnlockInput, UpdateStatus } from './types'
 import * as bindings from './wailsjs/go/desktop/App'
-import { application } from './wailsjs/go/models'
+import { application, domain } from './wailsjs/go/models'
 
 interface CashAPI {
   Bootstrap(): Promise<BootstrapData>
@@ -26,6 +26,7 @@ interface CashAPI {
   DeleteTransactionPermanently(id: string): Promise<void>
   EmptyTransactionTrash(): Promise<void>
   ListTransactions(): Promise<Transaction[]>
+  SearchTransactions(filter:TransactionFilter):Promise<Transaction[]>
   ListTrashedTransactions(): Promise<Transaction[]>
   CreditCardsOverview(): Promise<CreditCardsOverview>
   PayCreditCardInvoice(id: string, input: CreditCardPaymentInput): Promise<CreditCardPayment>
@@ -82,6 +83,7 @@ export const api: CashAPI = {
   DeleteTransactionPermanently: async (id) => await bindings.DeleteTransactionPermanently(id),
   EmptyTransactionTrash: async () => await bindings.EmptyTransactionTrash(),
   ListTransactions: async () => await bindings.ListTransactions() as unknown as Transaction[],
+  SearchTransactions: async(filter)=>await bindings.SearchTransactions(filter as domain.TransactionFilter) as unknown as Transaction[],
   ListTrashedTransactions: async () => await bindings.ListTrashedTransactions() as unknown as Transaction[],
   CreditCardsOverview: async () => await bindings.CreditCardsOverview() as unknown as CreditCardsOverview,
   PayCreditCardInvoice: async (id, input) => await bindings.PayCreditCardInvoice(id, new application.CreditCardPaymentInput(input)) as unknown as CreditCardPayment,

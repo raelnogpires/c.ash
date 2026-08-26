@@ -296,6 +296,10 @@ func (a *App) ListTransactions() ([]domain.Transaction, error) {
 	v, err := a.service.ListTransactions(a.context())
 	return v, safe(err)
 }
+func (a *App) SearchTransactions(filter domain.TransactionFilter) ([]domain.Transaction, error) {
+	v, err := a.service.SearchTransactions(a.context(), filter)
+	return v, safe(err)
+}
 func (a *App) ListTrashedTransactions() ([]domain.Transaction, error) {
 	v, err := a.service.ListTrashedTransactions(a.context())
 	return v, safe(err)

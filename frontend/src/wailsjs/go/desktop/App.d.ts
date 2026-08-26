@@ -90,6 +90,8 @@ export function RestoreTransaction(arg1:string):Promise<void>;
 
 export function SecurityStatus():Promise<storage.SecurityStatus>;
 
+export function SearchTransactions(arg1:domain.TransactionFilter):Promise<Array<domain.Transaction>>;
+
 export function SetBalancesHidden(arg1:boolean):Promise<domain.Profile>;
 
 export function SetGoalAllocations(arg1:string,arg2:Array<application.GoalAllocationInput>):Promise<domain.Goal>;

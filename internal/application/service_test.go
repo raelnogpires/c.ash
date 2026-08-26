@@ -488,6 +488,36 @@ func TestTransactionCapabilities_SplitsTagsInstallmentsAndRecurrence(t *testing.
 	}
 }
 
+func TestSearchTransactions_CombinesFiltersAcrossLedgerStatuses(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	account, err := service.CreateAccount(ctx, AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 10000, OpeningDate: "2026-08-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lunch, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 1200, AccountID: account.ID, CategoryID: "food", Description: "Almoço equipe", OccurrenceDate: "2026-08-10", Tags: []string{"trabalho"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Income, AmountCents: 5000, AccountID: account.ID, CategoryID: "salary", Description: "Salário", OccurrenceDate: "2026-08-15"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 300, AccountID: account.ID, CategoryID: "food", Description: "Parcelado", OccurrenceDate: "2026-08-16", InstallmentCount: 2}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.TrashTransaction(ctx, lunch.ID); err != nil {
+		t.Fatal(err)
+	}
+	items, err := service.SearchTransactions(ctx, domain.TransactionFilter{Text: "equipe", AccountID: account.ID, CategoryID: "food", Tag: "TRABALHO", Kind: domain.Expense, Status: "trashed", MinimumAmountCents: 1000, MaximumAmountCents: 1300})
+	if err != nil || len(items) != 1 || items[0].ID != lunch.ID {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+	pending, err := service.SearchTransactions(ctx, domain.TransactionFilter{Status: "pending", Recurrence: "nonrecurring"})
+	if err != nil || len(pending) != 1 || !pending[0].Pending {
+		t.Fatalf("pending=%+v err=%v", pending, err)
+	}
+}
+
 func TestDeleteAccount_BlocksUsageAndAllowsLastAccount(t *testing.T) {
 	service, _ := testService(t)
 	ctx := context.Background()

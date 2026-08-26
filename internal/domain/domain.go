@@ -166,6 +166,23 @@ type Transaction struct {
 	Tags                     []Tag              `json:"tags"`
 	Splits                   []TransactionSplit `json:"splits"`
 	RecurrenceRuleID         string             `json:"recurrenceRuleId,omitempty"`
+	Status                   string             `json:"status"`
+	Pending                  bool               `json:"pending"`
+}
+
+type TransactionFilter struct {
+	Text               string          `json:"text"`
+	StartDate          string          `json:"startDate"`
+	EndDate            string          `json:"endDate"`
+	AccountID          string          `json:"accountId"`
+	CategoryID         string          `json:"categoryId"`
+	SubcategoryID      string          `json:"subcategoryId"`
+	Tag                string          `json:"tag"`
+	Kind               TransactionKind `json:"kind"`
+	Status             string          `json:"status"`
+	MinimumAmountCents int64           `json:"minimumAmountCents"`
+	MaximumAmountCents int64           `json:"maximumAmountCents"`
+	Recurrence         string          `json:"recurrence"`
 }
 
 type TransactionOccurrence struct {

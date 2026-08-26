@@ -160,6 +160,8 @@ export function SecurityStatus() {
   return window['go']['desktop']['App']['SecurityStatus']();
 }
 
+export function SearchTransactions(arg1) { return window['go']['desktop']['App']['SearchTransactions'](arg1); }
+
 export function SetBalancesHidden(arg1) {
   return window['go']['desktop']['App']['SetBalancesHidden'](arg1);
 }

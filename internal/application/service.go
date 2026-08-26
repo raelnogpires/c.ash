@@ -1149,6 +1149,109 @@ func (s *Service) UpdateTransaction(ctx context.Context, id string, in Transacti
 func (s *Service) TransactionOccurrences(ctx context.Context) ([]domain.TransactionOccurrence, error) {
 	return s.store.TransactionOccurrences(ctx)
 }
+
+func (s *Service) SearchTransactions(ctx context.Context, filter domain.TransactionFilter) ([]domain.Transaction, error) {
+	active, err := s.store.Transactions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	trashed, err := s.store.TrashedTransactions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	occurrences, err := s.store.TransactionOccurrences(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]domain.Transaction, 0, len(active)+len(trashed)+len(occurrences))
+	for _, tx := range active {
+		tx.Status = "active"
+		items = append(items, tx)
+	}
+	for _, tx := range trashed {
+		tx.Status = "trashed"
+		items = append(items, tx)
+	}
+	for _, x := range occurrences {
+		if x.Status != "pending" {
+			continue
+		}
+		items = append(items, domain.Transaction{ID: x.ID, Kind: x.Kind, AmountCents: x.AmountCents, AccountID: x.AccountID, AccountName: x.AccountName, CategoryID: x.CategoryID, CategoryName: x.CategoryName, SubcategoryID: x.SubcategoryID, Description: x.Description, OccurrenceDate: x.ScheduledDate, CreatedAt: x.CreatedAt, UpdatedAt: x.UpdatedAt, InstallmentCount: x.InstallmentCount, RecurrenceRuleID: x.RecurrenceRuleID, Status: "pending", Pending: true, Tags: []domain.Tag{}, Splits: []domain.TransactionSplit{}})
+	}
+	match := func(tx domain.Transaction) bool {
+		if filter.Status != "" && filter.Status != "all" && tx.Status != filter.Status {
+			return false
+		}
+		if filter.StartDate != "" && tx.OccurrenceDate < filter.StartDate {
+			return false
+		}
+		if filter.EndDate != "" && tx.OccurrenceDate > filter.EndDate {
+			return false
+		}
+		if filter.AccountID != "" && tx.AccountID != filter.AccountID && tx.DestinationAccountID != filter.AccountID {
+			return false
+		}
+		if filter.CategoryID != "" && tx.CategoryID != filter.CategoryID {
+			found := false
+			for _, split := range tx.Splits {
+				if split.CategoryID == filter.CategoryID {
+					found = true
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+		if filter.SubcategoryID != "" && tx.SubcategoryID != filter.SubcategoryID {
+			return false
+		}
+		if filter.Kind != "" && tx.Kind != filter.Kind {
+			return false
+		}
+		if filter.MinimumAmountCents > 0 && tx.AmountCents < filter.MinimumAmountCents {
+			return false
+		}
+		if filter.MaximumAmountCents > 0 && tx.AmountCents > filter.MaximumAmountCents {
+			return false
+		}
+		if filter.Recurrence == "recurring" && tx.RecurrenceRuleID == "" {
+			return false
+		}
+		if filter.Recurrence == "nonrecurring" && tx.RecurrenceRuleID != "" {
+			return false
+		}
+		needle := strings.ToLower(strings.TrimSpace(filter.Text))
+		if needle != "" && !strings.Contains(strings.ToLower(tx.Description+" "+tx.AccountName+" "+tx.CategoryName+" "+tx.SubcategoryName), needle) {
+			return false
+		}
+		tagNeedle := strings.ToLower(strings.TrimSpace(filter.Tag))
+		if tagNeedle != "" {
+			found := false
+			for _, tag := range tx.Tags {
+				if strings.EqualFold(tag.Name, tagNeedle) {
+					found = true
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+		return true
+	}
+	result := []domain.Transaction{}
+	for _, tx := range items {
+		if match(tx) {
+			result = append(result, tx)
+		}
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].OccurrenceDate == result[j].OccurrenceDate {
+			return result[i].CreatedAt > result[j].CreatedAt
+		}
+		return result[i].OccurrenceDate > result[j].OccurrenceDate
+	})
+	return result, nil
+}
 func (s *Service) ConfirmTransactionOccurrence(ctx context.Context, id string) (domain.Transaction, error) {
 	now := s.now()
 	at := now.UTC().Format(time.RFC3339Nano)

@@ -459,6 +459,7 @@ export namespace desktop {
 }
 
 export namespace domain {
+	export class TransactionFilter { text:string;startDate:string;endDate:string;accountId:string;categoryId:string;subcategoryId:string;tag:string;kind:string;status:string;minimumAmountCents:number;maximumAmountCents:number;recurrence:string;constructor(source:any={}){Object.assign(this,source);this.text=source.text??'';this.startDate=source.startDate??'';this.endDate=source.endDate??'';this.accountId=source.accountId??'';this.categoryId=source.categoryId??'';this.subcategoryId=source.subcategoryId??'';this.tag=source.tag??'';this.kind=source.kind??'';this.status=source.status??'';this.minimumAmountCents=source.minimumAmountCents??0;this.maximumAmountCents=source.maximumAmountCents??0;this.recurrence=source.recurrence??'';} }
 
 	export class Account {
 	    id: string;
