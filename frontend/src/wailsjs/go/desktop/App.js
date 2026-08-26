@@ -6,8 +6,24 @@ export function ArchiveFixedExpense(arg1) {
   return window['go']['desktop']['App']['ArchiveFixedExpense'](arg1);
 }
 
+export function BackupStatus() {
+  return window['go']['desktop']['App']['BackupStatus']();
+}
+
 export function Bootstrap() {
   return window['go']['desktop']['App']['Bootstrap']();
+}
+
+export function ChangeEncryptionPassword(arg1) {
+  return window['go']['desktop']['App']['ChangeEncryptionPassword'](arg1);
+}
+
+export function CheckForUpdates() {
+  return window['go']['desktop']['App']['CheckForUpdates']();
+}
+
+export function ChooseBackupFolder() {
+  return window['go']['desktop']['App']['ChooseBackupFolder']();
 }
 
 export function CompleteOnboarding(arg1) {
@@ -22,6 +38,10 @@ export function CreateAccount(arg1) {
   return window['go']['desktop']['App']['CreateAccount'](arg1);
 }
 
+export function CreateBackup() {
+  return window['go']['desktop']['App']['CreateBackup']();
+}
+
 export function CreateFixedExpense(arg1) {
   return window['go']['desktop']['App']['CreateFixedExpense'](arg1);
 }
@@ -30,8 +50,8 @@ export function CreateTransaction(arg1) {
   return window['go']['desktop']['App']['CreateTransaction'](arg1);
 }
 
-export function CheckForUpdates() {
-  return window['go']['desktop']['App']['CheckForUpdates']();
+export function CreditCardsOverview() {
+  return window['go']['desktop']['App']['CreditCardsOverview']();
 }
 
 export function DeleteAccount(arg1) {
@@ -42,16 +62,28 @@ export function DeleteTransactionPermanently(arg1) {
   return window['go']['desktop']['App']['DeleteTransactionPermanently'](arg1);
 }
 
+export function DisableEncryption(arg1) {
+  return window['go']['desktop']['App']['DisableEncryption'](arg1);
+}
+
 export function DismissFixedExpenseOccurrence(arg1) {
   return window['go']['desktop']['App']['DismissFixedExpenseOccurrence'](arg1);
 }
 
-export function FixedExpensesOverview() {
-  return window['go']['desktop']['App']['FixedExpensesOverview']();
-}
-
 export function EmptyTransactionTrash() {
   return window['go']['desktop']['App']['EmptyTransactionTrash']();
+}
+
+export function EnableEncryption(arg1) {
+  return window['go']['desktop']['App']['EnableEncryption'](arg1);
+}
+
+export function ExportData(arg1) {
+  return window['go']['desktop']['App']['ExportData'](arg1);
+}
+
+export function FixedExpensesOverview() {
+  return window['go']['desktop']['App']['FixedExpensesOverview']();
 }
 
 export function GetUpdateStatus() {
@@ -60,6 +92,10 @@ export function GetUpdateStatus() {
 
 export function ImportBankStatement(arg1) {
   return window['go']['desktop']['App']['ImportBankStatement'](arg1);
+}
+
+export function InspectBackup() {
+  return window['go']['desktop']['App']['InspectBackup']();
 }
 
 export function InstallUpdate() {
@@ -74,16 +110,24 @@ export function ListTrashedTransactions() {
   return window['go']['desktop']['App']['ListTrashedTransactions']();
 }
 
-export function CreditCardsOverview() {
-  return window['go']['desktop']['App']['CreditCardsOverview']();
-}
-
 export function PayCreditCardInvoice(arg1, arg2) {
   return window['go']['desktop']['App']['PayCreditCardInvoice'](arg1, arg2);
 }
 
+export function RecoverEncryption(arg1) {
+  return window['go']['desktop']['App']['RecoverEncryption'](arg1);
+}
+
 export function ReopenFixedExpenseOccurrence(arg1) {
   return window['go']['desktop']['App']['ReopenFixedExpenseOccurrence'](arg1);
+}
+
+export function ResetBackupFolder() {
+  return window['go']['desktop']['App']['ResetBackupFolder']();
+}
+
+export function RestoreBackup(arg1) {
+  return window['go']['desktop']['App']['RestoreBackup'](arg1);
 }
 
 export function RestoreFixedExpense(arg1) {
@@ -94,6 +138,10 @@ export function RestoreTransaction(arg1) {
   return window['go']['desktop']['App']['RestoreTransaction'](arg1);
 }
 
+export function SecurityStatus() {
+  return window['go']['desktop']['App']['SecurityStatus']();
+}
+
 export function SetBalancesHidden(arg1) {
   return window['go']['desktop']['App']['SetBalancesHidden'](arg1);
 }
@@ -102,12 +150,20 @@ export function SetTheme(arg1) {
   return window['go']['desktop']['App']['SetTheme'](arg1);
 }
 
+export function SetVersion(arg1) {
+  return window['go']['desktop']['App']['SetVersion'](arg1);
+}
+
 export function SkipOnboarding() {
   return window['go']['desktop']['App']['SkipOnboarding']();
 }
 
 export function TrashTransaction(arg1) {
   return window['go']['desktop']['App']['TrashTransaction'](arg1);
+}
+
+export function UnlockDatabase(arg1) {
+  return window['go']['desktop']['App']['UnlockDatabase'](arg1);
 }
 
 export function UpdateAccount(arg1, arg2) {

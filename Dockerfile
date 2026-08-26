@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgtk-3-dev \
     libwebkit2gtk-4.0-dev \
+    libssl-dev \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
@@ -22,7 +23,11 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . ./
 COPY --from=frontend-builder /src/frontend/dist ./frontend/dist
-RUN CGO_ENABLED=1 go build -trimpath -tags desktop,production -o /out/cash ./cmd/cash
+RUN mkdir -p /tmp/cash-openssl-static \
+    && cp "$(pkg-config --variable=libdir openssl)/libcrypto.a" /tmp/cash-openssl-static/
+ENV CGO_ENABLED=1 CGO_LDFLAGS=-L/tmp/cash-openssl-static
+RUN go build -trimpath -tags desktop,production -o /out/cash ./cmd/cash \
+    && ! ldd /out/cash | grep -E 'libcrypto|libssl'
 
 # The final image is intended to run the Linux desktop build through the
 # host's X11 display. Application data lives in the mounted /data directory.

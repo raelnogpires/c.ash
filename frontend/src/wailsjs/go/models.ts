@@ -1,5 +1,5 @@
 export namespace application {
-	
+
 	export class AccountInput {
 	    name: string;
 	    type: string;
@@ -10,11 +10,11 @@ export namespace application {
 	    dueDay: number;
 	    openingDebtCents: number;
 	    openingDebtDueDate: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new AccountInput(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -33,11 +33,11 @@ export namespace application {
 	    importedCount: number;
 	    duplicateCount: number;
 	    ignoredCount: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new BankStatementImportResult(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.bank = source["bank"];
@@ -51,11 +51,11 @@ export namespace application {
 	    bank: string;
 	    fileName: string;
 	    base64Data: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new BankStatementInput(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.accountId = source["accountId"];
@@ -71,11 +71,11 @@ export namespace application {
 	    categories: domain.Category[];
 	    dashboard: domain.Dashboard;
 	    theme: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Bootstrap(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.profile = this.convertValues(source["profile"], domain.Profile);
@@ -85,7 +85,7 @@ export namespace application {
 	        this.dashboard = this.convertValues(source["dashboard"], domain.Dashboard);
 	        this.theme = source["theme"];
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -104,14 +104,30 @@ export namespace application {
 		    return a;
 		}
 	}
+	export class ChangeEncryptionPasswordInput {
+	    currentPassword: string;
+	    newPassword: string;
+	    confirmation: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ChangeEncryptionPasswordInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentPassword = source["currentPassword"];
+	        this.newPassword = source["newPassword"];
+	        this.confirmation = source["confirmation"];
+	    }
+	}
 	export class ConfirmFixedExpenseOccurrenceInput {
 	    amountCents: number;
 	    occurrenceDate: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ConfirmFixedExpenseOccurrenceInput(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.amountCents = source["amountCents"];
@@ -122,6 +138,11 @@ export namespace application {
 	    accountId: string;
 	    amountCents: number;
 	    occurrenceDate: string;
+
+	    static createFrom(source: any = {}) {
+	        return new CreditCardPaymentInput(source);
+	    }
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.accountId = source["accountId"];
@@ -132,10 +153,47 @@ export namespace application {
 	export class CreditCardsOverview {
 	    cards: domain.CreditCardSummary[];
 	    invoices: domain.CreditCardInvoice[];
+
+	    static createFrom(source: any = {}) {
+	        return new CreditCardsOverview(source);
+	    }
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.cards = (source["cards"] || []).map((item:any)=>new domain.CreditCardSummary(item));
-	        this.invoices = (source["invoices"] || []).map((item:any)=>new domain.CreditCardInvoice(item));
+	        this.cards = this.convertValues(source["cards"], domain.CreditCardSummary);
+	        this.invoices = this.convertValues(source["invoices"], domain.CreditCardInvoice);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class EncryptionInput {
+	    password: string;
+	    confirmation: string;
+
+	    static createFrom(source: any = {}) {
+	        return new EncryptionInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.password = source["password"];
+	        this.confirmation = source["confirmation"];
 	    }
 	}
 	export class FixedExpenseInput {
@@ -144,11 +202,11 @@ export namespace application {
 	    dueDay: number;
 	    accountId: string;
 	    categoryId: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new FixedExpenseInput(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.description = source["description"];
@@ -161,17 +219,17 @@ export namespace application {
 	export class FixedExpensesOverview {
 	    expenses: domain.FixedExpense[];
 	    occurrences: domain.FixedExpenseOccurrence[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new FixedExpensesOverview(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.expenses = this.convertValues(source["expenses"], domain.FixedExpense);
 	        this.occurrences = this.convertValues(source["occurrences"], domain.FixedExpenseOccurrence);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -195,11 +253,11 @@ export namespace application {
 	    currency: string;
 	    theme: string;
 	    firstAccount: AccountInput;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new OnboardingInput(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.displayName = source["displayName"];
@@ -207,7 +265,7 @@ export namespace application {
 	        this.theme = source["theme"];
 	        this.firstAccount = this.convertValues(source["firstAccount"], AccountInput);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -226,6 +284,38 @@ export namespace application {
 		    return a;
 		}
 	}
+	export class RecoverEncryptionInput {
+	    recoveryKey: string;
+	    newPassword: string;
+	    confirmation: string;
+
+	    static createFrom(source: any = {}) {
+	        return new RecoverEncryptionInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.recoveryKey = source["recoveryKey"];
+	        this.newPassword = source["newPassword"];
+	        this.confirmation = source["confirmation"];
+	    }
+	}
+	export class RestoreBackupInput {
+	    path: string;
+	    password: string;
+	    recoveryKey: string;
+
+	    static createFrom(source: any = {}) {
+	        return new RestoreBackupInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.password = source["password"];
+	        this.recoveryKey = source["recoveryKey"];
+	    }
+	}
 	export class TransactionInput {
 	    kind: string;
 	    amountCents: number;
@@ -235,11 +325,11 @@ export namespace application {
 	    description: string;
 	    occurrenceDate: string;
 	    installmentCount: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new TransactionInput(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.kind = source["kind"];
@@ -252,16 +342,80 @@ export namespace application {
 	        this.installmentCount = source["installmentCount"];
 	    }
 	}
+	export class UnlockInput {
+	    password: string;
+	    recoveryKey: string;
+
+	    static createFrom(source: any = {}) {
+	        return new UnlockInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.password = source["password"];
+	        this.recoveryKey = source["recoveryKey"];
+	    }
+	}
+
+}
+
+export namespace desktop {
+
+	export class BackupDialogResult {
+	    cancelled: boolean;
+	    success: boolean;
+	    backup: storage.BackupInfo;
+
+	    static createFrom(source: any = {}) {
+	        return new BackupDialogResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cancelled = source["cancelled"];
+	        this.success = source["success"];
+	        this.backup = this.convertValues(source["backup"], storage.BackupInfo);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class OperationResult {
+	    cancelled: boolean;
+	    success: boolean;
+	    path?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new OperationResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cancelled = source["cancelled"];
+	        this.success = source["success"];
+	        this.path = source["path"];
+	    }
+	}
 
 }
 
 export namespace domain {
-	export class CreditCardPayment {
-	    id!: string; invoiceId!: string; accountId!: string; accountName!: string; transactionId!: string;
-	    amountCents!: number; occurrenceDate!: string; createdAt!: string;
-	    constructor(source: any = {}) { Object.assign(this, typeof source === 'string' ? JSON.parse(source) : source); }
-	}
-	
+
 	export class Account {
 	    id: string;
 	    name: string;
@@ -270,14 +424,14 @@ export namespace domain {
 	    openingDate: string;
 	    createdAt: string;
 	    currentBalanceCents: number;
-	    creditLimitCents: number;
-	    closingDay: number;
-	    dueDay: number;
-	
+	    creditLimitCents?: number;
+	    closingDay?: number;
+	    dueDay?: number;
+
 	    static createFrom(source: any = {}) {
 	        return new Account(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -296,11 +450,11 @@ export namespace domain {
 	    accountId: string;
 	    accountName: string;
 	    balanceCents: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new AccountAllocation(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.accountId = source["accountId"];
@@ -312,11 +466,11 @@ export namespace domain {
 	    month: string;
 	    label: string;
 	    balanceCents: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new BalanceHistoryPoint(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.month = source["month"];
@@ -328,17 +482,160 @@ export namespace domain {
 	    id: string;
 	    name: string;
 	    kind: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Category(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.kind = source["kind"];
 	    }
+	}
+	export class CreditCardInstallment {
+	    id: string;
+	    invoiceId: string;
+	    transactionId?: string;
+	    description: string;
+	    amountCents: number;
+	    installmentNumber: number;
+	    installmentCount: number;
+	    openingDebt: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new CreditCardInstallment(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.invoiceId = source["invoiceId"];
+	        this.transactionId = source["transactionId"];
+	        this.description = source["description"];
+	        this.amountCents = source["amountCents"];
+	        this.installmentNumber = source["installmentNumber"];
+	        this.installmentCount = source["installmentCount"];
+	        this.openingDebt = source["openingDebt"];
+	    }
+	}
+	export class CreditCardPayment {
+	    id: string;
+	    invoiceId: string;
+	    accountId: string;
+	    accountName: string;
+	    transactionId: string;
+	    amountCents: number;
+	    occurrenceDate: string;
+	    createdAt: string;
+
+	    static createFrom(source: any = {}) {
+	        return new CreditCardPayment(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.invoiceId = source["invoiceId"];
+	        this.accountId = source["accountId"];
+	        this.accountName = source["accountName"];
+	        this.transactionId = source["transactionId"];
+	        this.amountCents = source["amountCents"];
+	        this.occurrenceDate = source["occurrenceDate"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
+	export class CreditCardInvoice {
+	    id: string;
+	    accountId: string;
+	    accountName: string;
+	    referenceMonth: string;
+	    closingDate: string;
+	    dueDate: string;
+	    status: string;
+	    chargesCents: number;
+	    carryForwardCents: number;
+	    paidCents: number;
+	    outstandingCents: number;
+	    installments: CreditCardInstallment[];
+	    payments: CreditCardPayment[];
+
+	    static createFrom(source: any = {}) {
+	        return new CreditCardInvoice(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.accountId = source["accountId"];
+	        this.accountName = source["accountName"];
+	        this.referenceMonth = source["referenceMonth"];
+	        this.closingDate = source["closingDate"];
+	        this.dueDate = source["dueDate"];
+	        this.status = source["status"];
+	        this.chargesCents = source["chargesCents"];
+	        this.carryForwardCents = source["carryForwardCents"];
+	        this.paidCents = source["paidCents"];
+	        this.outstandingCents = source["outstandingCents"];
+	        this.installments = this.convertValues(source["installments"], CreditCardInstallment);
+	        this.payments = this.convertValues(source["payments"], CreditCardPayment);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+	export class CreditCardSummary {
+	    account: Account;
+	    outstandingCents: number;
+	    availableLimitCents: number;
+	    currentInvoice?: CreditCardInvoice;
+
+	    static createFrom(source: any = {}) {
+	        return new CreditCardSummary(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.account = this.convertValues(source["account"], Account);
+	        this.outstandingCents = source["outstandingCents"];
+	        this.availableLimitCents = source["availableLimitCents"];
+	        this.currentInvoice = this.convertValues(source["currentInvoice"], CreditCardInvoice);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Transaction {
 	    id: string;
@@ -358,13 +655,13 @@ export namespace domain {
 	    fixedExpenseOccurrenceId?: string;
 	    automaticImport: boolean;
 	    importBank?: string;
-	    installmentCount: number;
+	    installmentCount?: number;
 	    invoicePaymentId?: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Transaction(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -388,21 +685,6 @@ export namespace domain {
 	        this.invoicePaymentId = source["invoicePaymentId"];
 	    }
 	}
-	export class CreditCardInstallment {
-	    id!: string; invoiceId!: string; transactionId?: string; description!: string; amountCents!: number;
-	    installmentNumber!: number; installmentCount!: number; openingDebt!: boolean;
-	    constructor(source:any={}) { Object.assign(this, typeof source==='string'?JSON.parse(source):source); }
-	}
-	export class CreditCardInvoice {
-	    id!: string; accountId!: string; accountName!: string; referenceMonth!: string; closingDate!: string; dueDate!: string;
-	    status!: string; chargesCents!: number; carryForwardCents!: number; paidCents!: number; outstandingCents!: number;
-	    installments!: CreditCardInstallment[]; payments!: CreditCardPayment[];
-	    constructor(source:any={}) { if(typeof source==='string')source=JSON.parse(source);Object.assign(this,source);this.installments=(source.installments||[]).map((item:any)=>new CreditCardInstallment(item));this.payments=(source.payments||[]).map((item:any)=>new CreditCardPayment(item)); }
-	}
-	export class CreditCardSummary {
-	    account!: Account; outstandingCents!: number; availableLimitCents!: number; currentInvoice?: CreditCardInvoice;
-	    constructor(source:any={}) { if(typeof source==='string')source=JSON.parse(source);this.account=new Account(source.account);this.outstandingCents=source.outstandingCents;this.availableLimitCents=source.availableLimitCents;this.currentInvoice=source.currentInvoice?new CreditCardInvoice(source.currentInvoice):undefined; }
-	}
 	export class Dashboard {
 	    availableBalanceCents: number;
 	    totalBalanceCents: number;
@@ -416,11 +698,11 @@ export namespace domain {
 	    hasNegativeBalance: boolean;
 	    creditCardDebtCents: number;
 	    upcomingInvoices: CreditCardInvoice[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Dashboard(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.availableBalanceCents = source["availableBalanceCents"];
@@ -436,7 +718,7 @@ export namespace domain {
 	        this.creditCardDebtCents = source["creditCardDebtCents"];
 	        this.upcomingInvoices = this.convertValues(source["upcomingInvoices"], CreditCardInvoice);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -467,11 +749,11 @@ export namespace domain {
 	    archivedAt?: string;
 	    createdAt: string;
 	    updatedAt: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new FixedExpense(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -502,11 +784,11 @@ export namespace domain {
 	    transactionId?: string;
 	    createdAt: string;
 	    updatedAt: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new FixedExpenseOccurrence(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -531,11 +813,11 @@ export namespace domain {
 	    theme: string;
 	    onboardingStatus: string;
 	    balancesHidden: boolean;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Profile(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.displayName = source["displayName"];
@@ -543,6 +825,171 @@ export namespace domain {
 	        this.theme = source["theme"];
 	        this.onboardingStatus = source["onboardingStatus"];
 	        this.balancesHidden = source["balancesHidden"];
+	    }
+	}
+
+}
+
+export namespace storage {
+
+	export class BackupManifest {
+	    formatVersion: number;
+	    createdAt: string;
+	    applicationVersion: string;
+	    schemaVersion: number;
+	    encrypted: boolean;
+	    payloadSha256: string;
+	    kind: string;
+
+	    static createFrom(source: any = {}) {
+	        return new BackupManifest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.formatVersion = source["formatVersion"];
+	        this.createdAt = source["createdAt"];
+	        this.applicationVersion = source["applicationVersion"];
+	        this.schemaVersion = source["schemaVersion"];
+	        this.encrypted = source["encrypted"];
+	        this.payloadSha256 = source["payloadSha256"];
+	        this.kind = source["kind"];
+	    }
+	}
+	export class BackupInfo {
+	    path: string;
+	    manifest: BackupManifest;
+
+	    static createFrom(source: any = {}) {
+	        return new BackupInfo(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.manifest = this.convertValues(source["manifest"], BackupManifest);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+	export class BackupStatus {
+	    folder: string;
+	    defaultFolder: string;
+	    lastAutomaticAt?: string;
+	    lastAutomaticPath?: string;
+	    lastError?: string;
+	    nextDueAt?: string;
+	    automaticDue: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new BackupStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.folder = source["folder"];
+	        this.defaultFolder = source["defaultFolder"];
+	        this.lastAutomaticAt = source["lastAutomaticAt"];
+	        this.lastAutomaticPath = source["lastAutomaticPath"];
+	        this.lastError = source["lastError"];
+	        this.nextDueAt = source["nextDueAt"];
+	        this.automaticDue = source["automaticDue"];
+	    }
+	}
+	export class SecurityStatus {
+	    enabled: boolean;
+	    locked: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new SecurityStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.locked = source["locked"];
+	    }
+	}
+	export class EncryptionResult {
+	    status: SecurityStatus;
+	    recoveryKey?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new EncryptionResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = this.convertValues(source["status"], SecurityStatus);
+	        this.recoveryKey = source["recoveryKey"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace updater {
+
+	export class Status {
+	    state: string;
+	    currentVersion: string;
+	    availableVersion?: string;
+	    releaseNotes?: string;
+	    publishedAt?: string;
+	    lastCheckedAt?: string;
+	    downloadedBytes?: number;
+	    totalBytes?: number;
+	    message?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.state = source["state"];
+	        this.currentVersion = source["currentVersion"];
+	        this.availableVersion = source["availableVersion"];
+	        this.releaseNotes = source["releaseNotes"];
+	        this.publishedAt = source["publishedAt"];
+	        this.lastCheckedAt = source["lastCheckedAt"];
+	        this.downloadedBytes = source["downloadedBytes"];
+	        this.totalBytes = source["totalBytes"];
+	        this.message = source["message"];
 	    }
 	}
 

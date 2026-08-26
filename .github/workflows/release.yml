@@ -27,7 +27,7 @@ jobs:
         run: |
           test "$(printf '%s' "$TAG" | sed -nE 's/^v([0-9]+\.[0-9]+\.[0-9]+)$/\1/p')" != ''
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libssl-dev build-essential
           go test ./...
           go vet ./...
           npm ci --prefix frontend
@@ -47,8 +47,14 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-openssl mingw-w64-x86_64-pkgconf
       - name: Build installer
-        shell: bash
+        shell: msys2 {0}
         env:
           TAG: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
@@ -59,9 +65,12 @@ jobs:
           npm run build --prefix frontend
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
           choco install nsis -y --no-progress
+          mkdir -p "$RUNNER_TEMP/openssl-static"
+          cp /mingw64/lib/libcrypto.a "$RUNNER_TEMP/openssl-static/"
           go build -trimpath -ldflags "-s -w" -o build/bin/cash-updater.exe ./cmd/cash-updater
           python -c "import json; p='cmd/cash/wails.json'; d=json.load(open(p)); d['info']={'companyName':'c.ash','productName':'[c]ash','productVersion':'${VERSION}','copyright':'c.ash'}; open(p,'w').write(json.dumps(d))"
-          (cd cmd/cash && wails build -s -platform windows/amd64 -nsis -installscope user -webview2 embed -ldflags "-X main.version=${VERSION} -X main.commit=${SHA} -X main.repository=${REPOSITORY}")
+          (cd cmd/cash && CGO_ENABLED=1 CGO_CFLAGS=-I/mingw64/include CGO_LDFLAGS="-L$RUNNER_TEMP/openssl-static $(pkg-config --static --libs libcrypto)" wails build -s -platform windows/amd64 -nsis -installscope user -webview2 embed -ldflags "-X main.version=${VERSION} -X main.commit=${SHA} -X main.repository=${REPOSITORY}")
+          if objdump -p build/bin/cash.exe | grep -qi 'DLL Name:.*\(libcrypto\|libssl\)'; then exit 1; fi
           mkdir -p dist
           mv build/bin/cash-amd64-installer.exe "dist/cash_${VERSION}_windows_amd64_setup.exe"
       - uses: actions/upload-artifact@v4
@@ -90,15 +99,18 @@ jobs:
         run: |
           VERSION="${TAG#v}"
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libssl-dev build-essential
           npm ci --prefix frontend
           npm run build --prefix frontend
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.43.0
           mkdir -p dist
+          mkdir -p /tmp/cash-openssl-static
+          cp "$(pkg-config --variable=libdir openssl)/libcrypto.a" /tmp/cash-openssl-static/
           go build -trimpath -ldflags "-s -w" -o dist/cash-updater ./cmd/cash-updater
           python3 -c "import json; p='cmd/cash/wails.json'; d=json.load(open(p)); d['info']={'companyName':'c.ash','productName':'[c]ash','productVersion':'${VERSION}','copyright':'c.ash'}; open(p,'w').write(json.dumps(d))"
-          (cd cmd/cash && wails build -s -tags webkit2_41 -ldflags "-X main.version=${VERSION} -X main.commit=${SHA} -X main.repository=${REPOSITORY}")
+          (cd cmd/cash && CGO_ENABLED=1 CGO_LDFLAGS=-L/tmp/cash-openssl-static wails build -s -tags webkit2_41 -ldflags "-X main.version=${VERSION} -X main.commit=${SHA} -X main.repository=${REPOSITORY}")
+          if ldd build/bin/cash | grep -Eq 'libcrypto|libssl'; then exit 1; fi
           sed -i "s/VERSION_PLACEHOLDER/${VERSION}/" build/linux/nfpm.yaml
           sed -i "s|OWNER/REPOSITORY|${REPOSITORY}|" build/linux/nfpm.yaml
           nfpm package --config build/linux/nfpm.yaml --packager deb --target "dist/cash_${VERSION}_linux_amd64.deb"
@@ -127,12 +139,16 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           VERSION="${TAG#v}"
+          brew install openssl@3
           npm ci --prefix frontend
           npm run build --prefix frontend
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+          mkdir -p "$RUNNER_TEMP/openssl-static"
+          cp "$(brew --prefix openssl@3)/lib/libcrypto.a" "$RUNNER_TEMP/openssl-static/"
           python3 -c "import json; p='cmd/cash/wails.json'; d=json.load(open(p)); d['info']={'companyName':'c.ash','productName':'[c]ash','productVersion':'${VERSION}','copyright':'c.ash'}; open(p,'w').write(json.dumps(d))"
-          (cd cmd/cash && wails build -s -platform darwin/arm64 -ldflags "-X main.version=${VERSION} -X main.commit=${SHA} -X main.repository=${REPOSITORY}")
+          (cd cmd/cash && CGO_ENABLED=1 CGO_CFLAGS="-I$(brew --prefix openssl@3)/include" CGO_LDFLAGS="-L$RUNNER_TEMP/openssl-static" wails build -s -platform darwin/arm64 -ldflags "-X main.version=${VERSION} -X main.commit=${SHA} -X main.repository=${REPOSITORY}")
           test -d build/bin/cash.app
+          if otool -L build/bin/cash.app/Contents/MacOS/cash | grep -Ei 'libcrypto|libssl'; then exit 1; fi
           mkdir -p dist
           ditto -c -k --sequesterRsrc --keepParent build/bin/cash.app "dist/cash_${VERSION}_darwin_arm64.zip"
       - uses: actions/upload-artifact@v4

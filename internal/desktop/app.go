@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"c.ash/internal/application"
 	"c.ash/internal/domain"
+	"c.ash/internal/storage"
 	"c.ash/internal/updater"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -19,22 +22,167 @@ type App struct {
 	service        *application.Service
 	updater        *updater.Manager
 	onThemeChanged func(domain.Theme)
+	version        string
 }
 
 func New(service *application.Service, updaterManager *updater.Manager, onThemeChanged ...func(domain.Theme)) *App {
-	app := &App{service: service, updater: updaterManager}
+	app := &App{service: service, updater: updaterManager, version: "dev"}
 	if len(onThemeChanged) > 0 {
 		app.onThemeChanged = onThemeChanged[0]
 	}
 	return app
 }
+
+func (a *App) SetVersion(version string) {
+	if strings.TrimSpace(version) != "" {
+		a.version = version
+	}
+}
+
+type OperationResult struct {
+	Cancelled bool   `json:"cancelled"`
+	Success   bool   `json:"success"`
+	Path      string `json:"path,omitempty"`
+}
+
+type BackupDialogResult struct {
+	Cancelled bool               `json:"cancelled"`
+	Success   bool               `json:"success"`
+	Backup    storage.BackupInfo `json:"backup"`
+}
+
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	if !a.service.SecurityStatus().Locked {
+		go func() {
+			status, err := a.service.RunAutomaticBackup(context.Background(), a.version)
+			if err != nil {
+				log.Printf("automatic backup failed: %v", redact(err.Error()))
+			}
+			runtime.EventsEmit(ctx, "backup:status", status)
+		}()
+	}
 	if a.updater == nil {
 		return
 	}
 	a.updater.Subscribe(func(status updater.Status) { runtime.EventsEmit(ctx, "update:status", status) })
 	go func() { _, _ = a.updater.Check(context.Background(), false) }()
+}
+
+func (a *App) SecurityStatus() storage.SecurityStatus { return a.service.SecurityStatus() }
+
+func (a *App) UnlockDatabase(in application.UnlockInput) (storage.SecurityStatus, error) {
+	err := a.service.UnlockDatabase(a.context(), in)
+	if err == nil {
+		go func() {
+			status, _ := a.service.RunAutomaticBackup(context.Background(), a.version)
+			runtime.EventsEmit(a.context(), "backup:status", status)
+		}()
+	}
+	return a.service.SecurityStatus(), safe(err)
+}
+
+func (a *App) EnableEncryption(in application.EncryptionInput) (storage.EncryptionResult, error) {
+	result, err := a.service.EnableEncryption(a.context(), in, a.version)
+	return result, safe(err)
+}
+
+func (a *App) ChangeEncryptionPassword(in application.ChangeEncryptionPasswordInput) error {
+	return safe(a.service.ChangeEncryptionPassword(a.context(), in, a.version))
+}
+
+func (a *App) RecoverEncryption(in application.RecoverEncryptionInput) (storage.SecurityStatus, error) {
+	err := a.service.RecoverEncryption(a.context(), in, a.version)
+	return a.service.SecurityStatus(), safe(err)
+}
+
+func (a *App) DisableEncryption(in application.UnlockInput) (storage.SecurityStatus, error) {
+	err := a.service.DisableEncryption(a.context(), in, a.version)
+	return a.service.SecurityStatus(), safe(err)
+}
+
+func (a *App) BackupStatus() (storage.BackupStatus, error) {
+	status, err := a.service.BackupStatus()
+	return status, safe(err)
+}
+
+func (a *App) CreateBackup() (BackupDialogResult, error) {
+	status, err := a.service.BackupStatus()
+	if err != nil {
+		return BackupDialogResult{}, safe(err)
+	}
+	path, err := runtime.SaveFileDialog(a.context(), runtime.SaveDialogOptions{Title: "Salvar backup", DefaultDirectory: status.Folder, DefaultFilename: "cash-backup.cashbackup", CanCreateDirectories: true, Filters: []runtime.FileFilter{{DisplayName: "Backup do [c]ash (*.cashbackup)", Pattern: "*.cashbackup"}}})
+	if err != nil {
+		return BackupDialogResult{}, safe(err)
+	}
+	if path == "" {
+		return BackupDialogResult{Cancelled: true}, nil
+	}
+	backup, err := a.service.CreateBackup(a.context(), path, a.version)
+	return BackupDialogResult{Success: err == nil, Backup: backup}, safe(err)
+}
+
+func (a *App) ChooseBackupFolder() (OperationResult, error) {
+	status, err := a.service.BackupStatus()
+	if err != nil {
+		return OperationResult{}, safe(err)
+	}
+	path, err := runtime.OpenDirectoryDialog(a.context(), runtime.OpenDialogOptions{Title: "Escolher pasta de backups", DefaultDirectory: status.Folder, CanCreateDirectories: true})
+	if err != nil {
+		return OperationResult{}, safe(err)
+	}
+	if path == "" {
+		return OperationResult{Cancelled: true}, nil
+	}
+	err = a.service.SetBackupFolder(path)
+	return OperationResult{Success: err == nil, Path: path}, safe(err)
+}
+
+func (a *App) ResetBackupFolder() (storage.BackupStatus, error) {
+	err := a.service.ResetBackupFolder()
+	if err != nil {
+		return storage.BackupStatus{}, safe(err)
+	}
+	status, err := a.service.BackupStatus()
+	return status, safe(err)
+}
+
+func (a *App) InspectBackup() (BackupDialogResult, error) {
+	status, _ := a.service.BackupStatus()
+	path, err := runtime.OpenFileDialog(a.context(), runtime.OpenDialogOptions{Title: "Selecionar backup", DefaultDirectory: status.Folder, Filters: []runtime.FileFilter{{DisplayName: "Backup do [c]ash (*.cashbackup)", Pattern: "*.cashbackup"}}})
+	if err != nil {
+		return BackupDialogResult{}, safe(err)
+	}
+	if path == "" {
+		return BackupDialogResult{Cancelled: true}, nil
+	}
+	backup, err := a.service.InspectBackup(path)
+	return BackupDialogResult{Success: err == nil, Backup: backup}, safe(err)
+}
+
+func (a *App) RestoreBackup(in application.RestoreBackupInput) (BackupDialogResult, error) {
+	backup, err := a.service.RestoreBackup(a.context(), in, a.version)
+	return BackupDialogResult{Success: err == nil, Backup: backup}, safe(err)
+}
+
+func (a *App) ExportData(format string) (OperationResult, error) {
+	exportFormat := storage.ExportFormat(format)
+	if exportFormat != storage.ExportCSV && exportFormat != storage.ExportJSON {
+		return OperationResult{}, safe(errors.New("unsupported export format"))
+	}
+	extension := "." + format
+	path, err := runtime.SaveFileDialog(a.context(), runtime.SaveDialogOptions{Title: "Exportar dados", DefaultFilename: "cash-export" + extension, CanCreateDirectories: true, Filters: []runtime.FileFilter{{DisplayName: strings.ToUpper(format) + " (*" + extension + ")", Pattern: "*" + extension}}})
+	if err != nil {
+		return OperationResult{}, safe(err)
+	}
+	if path == "" {
+		return OperationResult{Cancelled: true}, nil
+	}
+	if !strings.EqualFold(filepath.Ext(path), extension) {
+		path += extension
+	}
+	err = a.service.ExportData(a.context(), exportFormat, path, a.version)
+	return OperationResult{Success: err == nil, Path: path}, safe(err)
 }
 
 func (a *App) GetUpdateStatus() updater.Status {
@@ -208,6 +356,16 @@ func safe(err error) error {
 		{domain.ErrInvoiceNotPayable, "Esta fatura já foi paga ou transferida para a seguinte."},
 		{domain.ErrInvalidPaymentAccount, "Escolha uma conta corrente, poupança ou dinheiro para pagar a fatura."},
 		{domain.ErrInvoiceOverpayment, "O pagamento não pode superar o valor em aberto da fatura."},
+		{storage.ErrLocked, "Desbloqueie o banco de dados para continuar."},
+		{storage.ErrInvalidCredential, "Senha ou chave de recuperação incorreta."},
+		{storage.ErrWeakPassword, "Use uma senha com pelo menos 12 caracteres."},
+		{storage.ErrPasswordMismatch, "A confirmação da senha não corresponde."},
+		{storage.ErrEncryptionEnabled, "A criptografia já está ativada."},
+		{storage.ErrEncryptionDisabled, "A criptografia não está ativada."},
+		{storage.ErrCorruptKeyFile, "Os metadados de criptografia estão corrompidos. Use um backup válido."},
+		{storage.ErrInvalidBackup, "O arquivo de backup está inválido ou foi alterado."},
+		{storage.ErrUnsupportedBackup, "Este formato de backup não é compatível com esta versão."},
+		{storage.ErrNewerSchema, "Este backup foi criado por uma versão mais nova do aplicativo."},
 	}
 	for _, item := range messages {
 		if errors.Is(err, item.target) {

@@ -51,7 +51,7 @@ com o aplicativo fechado.
 - **Desktop:** Wails v2 estável
 - **Domínio e persistência:** Go
 - **Interface:** React, TypeScript e Vite
-- **Armazenamento:** SQLite
+- **Armazenamento:** SQLite/SQLCipher (criptografia opcional)
 
 As regras financeiras e a persistência ficam em Go. A interface cuida apenas
 da apresentação, do estado transitório das telas e de validações imediatas de
@@ -60,8 +60,9 @@ formulário.
 ## Desenvolvimento
 
 O primeiro fluxo vertical já está implementado com Go 1.25+, Wails v2.13.0,
-React, TypeScript, Vite e SQLite puro em Go. Para validar as camadas a partir da
-raiz do repositório:
+React, TypeScript, Vite e SQLite/SQLCipher. A compilação exige CGO, compilador C
+e headers do OpenSSL (`libssl-dev` em Debian/Ubuntu, `openssl@3` no macOS ou o
+pacote MinGW equivalente no Windows). Para validar as camadas a partir da raiz:
 
 ```sh
 go build ./...
@@ -162,6 +163,13 @@ Os dados de produção ficam em `c.ash/cash.db` sob o diretório de configuraç�
 do usuário da plataforma. Testes injetam caminhos temporários e não usam dados
 reais. Uma trava de arquivo impede duas instâncias de escreverem no mesmo banco.
 
+Backups automáticos ficam por padrão em `c.ash/backups` sob o diretório de
+configuração, rodam a cada sete dias e retêm 12 versões automáticas. Arquivos
+`.cashbackup` manuais e de segurança não são removidos pela retenção. A pasta
+escolhida fica em `backup-settings.json`, fora do banco financeiro. Quando a
+criptografia opcional está ativa, `cash.keys` contém somente envelopes
+criptográficos; senha e chave de recuperação nunca são armazenadas.
+
 ## Importação de extratos PDF, OFX e CSV
 
 Na tela de movimentações, o usuário pode associar à conta um extrato PDF, OFX ou
@@ -198,6 +206,7 @@ ferramentas forem configuradas.
 - [Arquitetura](docs/architecture.md)
 - [Modelo financeiro](docs/financial-model.md)
 - [Design e experiência](docs/design.md)
+- [Licenças de código aberto](docs/open-source-licenses.md)
 
 Esses documentos registram o entendimento atual do MVP. Mudanças estruturais
 devem atualizar a documentação correspondente junto com o código.

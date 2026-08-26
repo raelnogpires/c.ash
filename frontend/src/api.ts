@@ -1,4 +1,4 @@
-import type { Account, AccountInput, BankStatementImportResult, BankStatementInput, BootstrapData, ConfirmFixedExpenseOccurrenceInput, CreditCardPayment, CreditCardPaymentInput, CreditCardsOverview, FixedExpense, FixedExpenseInput, FixedExpensesOverview, OnboardingInput, Profile, Theme, Transaction, TransactionInput, UpdateStatus } from './types'
+import type { Account, AccountInput, BackupDialogResult, BackupStatus, BankStatementImportResult, BankStatementInput, BootstrapData, ChangeEncryptionPasswordInput, ConfirmFixedExpenseOccurrenceInput, CreditCardPayment, CreditCardPaymentInput, CreditCardsOverview, EncryptionInput, EncryptionResult, FixedExpense, FixedExpenseInput, FixedExpensesOverview, OnboardingInput, OperationResult, Profile, RecoverEncryptionInput, RestoreBackupInput, SecurityStatus, Theme, Transaction, TransactionInput, UnlockInput, UpdateStatus } from './types'
 import * as bindings from './wailsjs/go/desktop/App'
 import { application } from './wailsjs/go/models'
 
@@ -33,6 +33,19 @@ interface CashAPI {
   GetUpdateStatus(): Promise<UpdateStatus>
   CheckForUpdates(): Promise<UpdateStatus>
   InstallUpdate(): Promise<UpdateStatus>
+  SecurityStatus?(): Promise<SecurityStatus>
+  UnlockDatabase?(input: UnlockInput): Promise<SecurityStatus>
+  EnableEncryption?(input: EncryptionInput): Promise<EncryptionResult>
+  ChangeEncryptionPassword?(input: ChangeEncryptionPasswordInput): Promise<void>
+  RecoverEncryption?(input: RecoverEncryptionInput): Promise<SecurityStatus>
+  DisableEncryption?(input: UnlockInput): Promise<SecurityStatus>
+  BackupStatus?(): Promise<BackupStatus>
+  CreateBackup?(): Promise<BackupDialogResult>
+  ChooseBackupFolder?(): Promise<OperationResult>
+  ResetBackupFolder?(): Promise<BackupStatus>
+  InspectBackup?(): Promise<BackupDialogResult>
+  RestoreBackup?(input: RestoreBackupInput): Promise<BackupDialogResult>
+  ExportData?(format: 'csv' | 'json'): Promise<OperationResult>
 }
 
 export const api: CashAPI = {
@@ -66,4 +79,17 @@ export const api: CashAPI = {
   GetUpdateStatus: async () => await bindings.GetUpdateStatus() as unknown as UpdateStatus,
   CheckForUpdates: async () => await bindings.CheckForUpdates() as unknown as UpdateStatus,
   InstallUpdate: async () => await bindings.InstallUpdate() as unknown as UpdateStatus,
+  SecurityStatus: async () => await bindings.SecurityStatus() as unknown as SecurityStatus,
+  UnlockDatabase: async (input) => await bindings.UnlockDatabase({ password: input.password, recoveryKey: input.recoveryKey ?? '' }) as unknown as SecurityStatus,
+  EnableEncryption: async (input) => await bindings.EnableEncryption(input) as unknown as EncryptionResult,
+  ChangeEncryptionPassword: async (input) => await bindings.ChangeEncryptionPassword(input),
+  RecoverEncryption: async (input) => await bindings.RecoverEncryption(input) as unknown as SecurityStatus,
+  DisableEncryption: async (input) => await bindings.DisableEncryption({ password: input.password, recoveryKey: input.recoveryKey ?? '' }) as unknown as SecurityStatus,
+  BackupStatus: async () => await bindings.BackupStatus() as unknown as BackupStatus,
+  CreateBackup: async () => await bindings.CreateBackup() as unknown as BackupDialogResult,
+  ChooseBackupFolder: async () => await bindings.ChooseBackupFolder() as unknown as OperationResult,
+  ResetBackupFolder: async () => await bindings.ResetBackupFolder() as unknown as BackupStatus,
+  InspectBackup: async () => await bindings.InspectBackup() as unknown as BackupDialogResult,
+  RestoreBackup: async (input) => await bindings.RestoreBackup({ path: input.path, password: input.password ?? '', recoveryKey: input.recoveryKey ?? '' }) as unknown as BackupDialogResult,
+  ExportData: async (format) => await bindings.ExportData(format) as unknown as OperationResult,
 }

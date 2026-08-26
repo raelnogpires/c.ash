@@ -13,22 +13,34 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"c.ash/internal/domain"
+	sqlite3 "github.com/0xCarbon/go-sqlite3"
 	"github.com/gofrs/flock"
-	_ "modernc.org/sqlite"
 )
 
 var ErrAlreadyRunning = errors.New("database is already open by another application instance")
+var ErrLocked = errors.New("database is locked")
 
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
 type Store struct {
-	db   *sql.DB
-	lock *flock.Flock
+	db        *sql.DB
+	lock      *flock.Flock
+	path      string
+	keyPath   string
+	key       []byte
+	encrypted bool
+	closed    bool
+	version   string
+	opMu      sync.RWMutex
 }
+
+var driverSequence atomic.Uint64
 
 type Queries interface {
 	Profile(context.Context) (*domain.Profile, error)
@@ -91,6 +103,10 @@ func DefaultPath() (string, error) {
 }
 
 func Open(ctx context.Context, path string) (*Store, error) {
+	return OpenWithVersion(ctx, path, "dev")
+}
+
+func OpenWithVersion(ctx context.Context, path, version string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create data directory: %w", err)
 	}
@@ -102,25 +118,108 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if !locked {
 		return nil, ErrAlreadyRunning
 	}
-	dsn := "file:" + filepath.ToSlash(path) + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
-	db, err := sql.Open("sqlite", dsn)
+	if strings.TrimSpace(version) == "" {
+		version = "dev"
+	}
+	store := &Store{lock: fileLock, path: path, keyPath: filepath.Join(filepath.Dir(path), "cash.keys"), version: version}
+	if err := store.recoverOperation(); err != nil {
+		_ = fileLock.Unlock()
+		return nil, err
+	}
+	if _, err := os.Stat(store.keyPath); err == nil {
+		store.encrypted = true
+		return store, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		_ = fileLock.Unlock()
+		return nil, fmt.Errorf("inspect encryption metadata: %w", err)
+	}
+	existed := fileExists(path)
+	db, _, err := openSQLite(path, nil)
 	if err != nil {
 		_ = fileLock.Unlock()
-		return nil, fmt.Errorf("open sqlite: %w", err)
+		return nil, err
 	}
-	db.SetMaxOpenConns(1)
+	store.db = db
+	if existed {
+		pending, pendingErr := hasPendingMigrations(ctx, db)
+		if pendingErr != nil {
+			_ = db.Close()
+			_ = fileLock.Unlock()
+			return nil, pendingErr
+		}
+		if pending {
+			if _, backupErr := store.createBackupLocked(ctx, BackupKindPreMigration, store.version); backupErr != nil {
+				_ = db.Close()
+				_ = fileLock.Unlock()
+				return nil, fmt.Errorf("create pre-migration backup: %w", backupErr)
+			}
+		}
+	}
 	if err := ApplyMigrations(ctx, db, migrationFiles); err != nil {
 		_ = db.Close()
 		_ = fileLock.Unlock()
 		return nil, err
 	}
-	return &Store{db: db, lock: fileLock}, nil
+	return store, nil
 }
 
 func (s *Store) Close() error {
-	dbErr := s.db.Close()
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+	var dbErr error
+	if s.db != nil {
+		dbErr = s.db.Close()
+		s.db = nil
+	}
+	zero(s.key)
+	s.key = nil
 	lockErr := s.lock.Unlock()
 	return errors.Join(dbErr, lockErr)
+}
+
+func openSQLite(path string, key []byte) (*sql.DB, *sqlite3.SQLiteDriver, error) {
+	driver := &sqlite3.SQLiteDriver{EncryptionKeyBytes: key}
+	name := fmt.Sprintf("cash_sqlite_%d", driverSequence.Add(1))
+	sql.Register(name, driver)
+	dsn := "file:" + filepath.ToSlash(path) + "?_foreign_keys=on&_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL"
+	db, err := sql.Open(name, dsn)
+	if err != nil {
+		return nil, driver, fmt.Errorf("open sqlite: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, driver, fmt.Errorf("open sqlite: %w", err)
+	}
+	return db, driver, nil
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir() && info.Size() > 0
+}
+
+func hasPendingMigrations(ctx context.Context, db *sql.DB) (bool, error) {
+	var exists int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name='schema_migrations'`).Scan(&exists); err != nil {
+		return false, fmt.Errorf("inspect migration history: %w", err)
+	}
+	if exists == 0 {
+		return true, nil
+	}
+	entries, err := fs.Glob(migrationFiles, "migrations/*.sql")
+	if err != nil {
+		return false, err
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
+		return false, fmt.Errorf("inspect migration history: %w", err)
+	}
+	return count < len(entries), nil
 }
 
 func ApplyMigrations(ctx context.Context, db *sql.DB, files fs.FS) error {
@@ -164,6 +263,11 @@ func ApplyMigrations(ctx context.Context, db *sql.DB, files fs.FS) error {
 }
 
 func (s *Store) WithTx(ctx context.Context, fn func(Queries) error) error {
+	s.opMu.RLock()
+	defer s.opMu.RUnlock()
+	if s.db == nil {
+		return ErrLocked
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -176,56 +280,75 @@ func (s *Store) WithTx(ctx context.Context, fn func(Queries) error) error {
 }
 
 func (s *Store) queries() *dbQueries { return &dbQueries{q: s.db} }
+func storeRead[T any](s *Store, fn func(*dbQueries) (T, error)) (T, error) {
+	s.opMu.RLock()
+	defer s.opMu.RUnlock()
+	if s.db == nil {
+		var zero T
+		return zero, ErrLocked
+	}
+	return fn(s.queries())
+}
+
+func (s *Store) storeWrite(fn func(*dbQueries) error) error {
+	s.opMu.RLock()
+	defer s.opMu.RUnlock()
+	if s.db == nil {
+		return ErrLocked
+	}
+	return fn(s.queries())
+}
+
 func (s *Store) Profile(ctx context.Context) (*domain.Profile, error) {
-	return s.queries().Profile(ctx)
+	return storeRead(s, func(q *dbQueries) (*domain.Profile, error) { return q.Profile(ctx) })
 }
 func (s *Store) Accounts(ctx context.Context) ([]domain.Account, error) {
-	return s.queries().Accounts(ctx)
+	return storeRead(s, func(q *dbQueries) ([]domain.Account, error) { return q.Accounts(ctx) })
 }
 func (s *Store) Account(ctx context.Context, id string) (*domain.Account, error) {
-	return s.queries().Account(ctx, id)
+	return storeRead(s, func(q *dbQueries) (*domain.Account, error) { return q.Account(ctx, id) })
 }
 func (s *Store) AccountTransactions(ctx context.Context, id string) ([]domain.Transaction, error) {
-	return s.queries().AccountTransactions(ctx, id)
+	return storeRead(s, func(q *dbQueries) ([]domain.Transaction, error) { return q.AccountTransactions(ctx, id) })
 }
 func (s *Store) CreditCardInvoices(ctx context.Context, id string) ([]domain.CreditCardInvoice, error) {
-	return s.queries().CreditCardInvoices(ctx, id)
+	return storeRead(s, func(q *dbQueries) ([]domain.CreditCardInvoice, error) { return q.CreditCardInvoices(ctx, id) })
 }
 func (s *Store) CreditCardInvoice(ctx context.Context, id string) (*domain.CreditCardInvoice, error) {
-	return s.queries().CreditCardInvoice(ctx, id)
+	return storeRead(s, func(q *dbQueries) (*domain.CreditCardInvoice, error) { return q.CreditCardInvoice(ctx, id) })
 }
 func (s *Store) Categories(ctx context.Context) ([]domain.Category, error) {
-	return s.queries().Categories(ctx)
+	return storeRead(s, func(q *dbQueries) ([]domain.Category, error) { return q.Categories(ctx) })
 }
 func (s *Store) Category(ctx context.Context, id string) (*domain.Category, error) {
-	return s.queries().Category(ctx, id)
+	return storeRead(s, func(q *dbQueries) (*domain.Category, error) { return q.Category(ctx, id) })
 }
 func (s *Store) Transactions(ctx context.Context) ([]domain.Transaction, error) {
-	return s.queries().Transactions(ctx)
+	return storeRead(s, func(q *dbQueries) ([]domain.Transaction, error) { return q.Transactions(ctx) })
 }
 func (s *Store) TrashedTransactions(ctx context.Context) ([]domain.Transaction, error) {
-	return s.queries().TrashedTransactions(ctx)
+	return storeRead(s, func(q *dbQueries) ([]domain.Transaction, error) { return q.TrashedTransactions(ctx) })
 }
 func (s *Store) Transaction(ctx context.Context, id string) (*domain.Transaction, error) {
-	return s.queries().Transaction(ctx, id)
+	return storeRead(s, func(q *dbQueries) (*domain.Transaction, error) { return q.Transaction(ctx, id) })
 }
 func (s *Store) FixedExpenses(ctx context.Context) ([]domain.FixedExpense, error) {
-	return s.queries().FixedExpenses(ctx)
+	return storeRead(s, func(q *dbQueries) ([]domain.FixedExpense, error) { return q.FixedExpenses(ctx) })
 }
 func (s *Store) FixedExpenseOccurrences(ctx context.Context) ([]domain.FixedExpenseOccurrence, error) {
-	return s.queries().FixedExpenseOccurrences(ctx)
+	return storeRead(s, func(q *dbQueries) ([]domain.FixedExpenseOccurrence, error) { return q.FixedExpenseOccurrences(ctx) })
 }
 func (s *Store) SaveProfile(ctx context.Context, p domain.Profile, at string) error {
-	return s.queries().SaveProfile(ctx, p, at)
+	return s.storeWrite(func(q *dbQueries) error { return q.SaveProfile(ctx, p, at) })
 }
 func (s *Store) SetBalancesHidden(ctx context.Context, hidden bool, at string) error {
-	return s.queries().SetBalancesHidden(ctx, hidden, at)
+	return s.storeWrite(func(q *dbQueries) error { return q.SetBalancesHidden(ctx, hidden, at) })
 }
 func (s *Store) InsertAccount(ctx context.Context, a domain.Account, at string) error {
-	return s.queries().InsertAccount(ctx, a, at)
+	return s.storeWrite(func(q *dbQueries) error { return q.InsertAccount(ctx, a, at) })
 }
 func (s *Store) UpdateAccount(ctx context.Context, a domain.Account, at string) error {
-	return s.queries().UpdateAccount(ctx, a, at)
+	return s.storeWrite(func(q *dbQueries) error { return q.UpdateAccount(ctx, a, at) })
 }
 func (s *Store) DeleteAccount(ctx context.Context, id string) error {
 	return s.WithTx(ctx, func(q Queries) error {
@@ -247,22 +370,22 @@ func (s *Store) DeleteAccount(ctx context.Context, id string) error {
 	})
 }
 func (s *Store) InsertTransaction(ctx context.Context, t domain.Transaction, at string) error {
-	return s.queries().InsertTransaction(ctx, t, at)
+	return s.storeWrite(func(q *dbQueries) error { return q.InsertTransaction(ctx, t, at) })
 }
 func (s *Store) UpdateTransaction(ctx context.Context, t domain.Transaction, at string) error {
-	return s.queries().UpdateTransaction(ctx, t, at)
+	return s.storeWrite(func(q *dbQueries) error { return q.UpdateTransaction(ctx, t, at) })
 }
 func (s *Store) SetTransactionDeletedAt(ctx context.Context, id, deletedAt, at string) error {
-	return s.queries().SetTransactionDeletedAt(ctx, id, deletedAt, at)
+	return s.storeWrite(func(q *dbQueries) error { return q.SetTransactionDeletedAt(ctx, id, deletedAt, at) })
 }
 func (s *Store) DeleteTransactionRevisions(ctx context.Context, id string) error {
-	return s.queries().DeleteTransactionRevisions(ctx, id)
+	return s.storeWrite(func(q *dbQueries) error { return q.DeleteTransactionRevisions(ctx, id) })
 }
 func (s *Store) DeleteTransaction(ctx context.Context, id string) error {
-	return s.queries().DeleteTransaction(ctx, id)
+	return s.storeWrite(func(q *dbQueries) error { return q.DeleteTransaction(ctx, id) })
 }
 func (s *Store) InsertTransactionRevision(ctx context.Context, t domain.Transaction, action, at string) error {
-	return s.queries().InsertTransactionRevision(ctx, t, action, at)
+	return s.storeWrite(func(q *dbQueries) error { return q.InsertTransactionRevision(ctx, t, action, at) })
 }
 
 func (q *dbQueries) Profile(ctx context.Context) (*domain.Profile, error) {

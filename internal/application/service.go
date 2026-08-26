@@ -108,11 +108,87 @@ type Service struct {
 	now   Clock
 }
 
+type EncryptionInput struct {
+	Password     string `json:"password"`
+	Confirmation string `json:"confirmation"`
+}
+
+type ChangeEncryptionPasswordInput struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+	Confirmation    string `json:"confirmation"`
+}
+
+type RecoverEncryptionInput struct {
+	RecoveryKey  string `json:"recoveryKey"`
+	NewPassword  string `json:"newPassword"`
+	Confirmation string `json:"confirmation"`
+}
+
+type UnlockInput struct {
+	Password    string `json:"password"`
+	RecoveryKey string `json:"recoveryKey"`
+}
+
+type RestoreBackupInput struct {
+	Path        string `json:"path"`
+	Password    string `json:"password"`
+	RecoveryKey string `json:"recoveryKey"`
+}
+
 func New(store *storage.Store, now Clock) *Service {
 	if now == nil {
 		now = time.Now
 	}
 	return &Service{store: store, now: now}
+}
+
+func (s *Service) SecurityStatus() storage.SecurityStatus { return s.store.SecurityStatus() }
+
+func (s *Service) UnlockDatabase(ctx context.Context, in UnlockInput) error {
+	return s.store.Unlock(ctx, in.Password, in.RecoveryKey)
+}
+
+func (s *Service) EnableEncryption(ctx context.Context, in EncryptionInput, version string) (storage.EncryptionResult, error) {
+	return s.store.EnableEncryption(ctx, in.Password, in.Confirmation, version)
+}
+
+func (s *Service) ChangeEncryptionPassword(ctx context.Context, in ChangeEncryptionPasswordInput, version string) error {
+	return s.store.ChangePassword(ctx, in.CurrentPassword, in.NewPassword, in.Confirmation, version)
+}
+
+func (s *Service) RecoverEncryption(ctx context.Context, in RecoverEncryptionInput, version string) error {
+	return s.store.RecoverPassword(ctx, in.RecoveryKey, in.NewPassword, in.Confirmation, version)
+}
+
+func (s *Service) DisableEncryption(ctx context.Context, in UnlockInput, version string) error {
+	return s.store.DisableEncryption(ctx, in.Password, in.RecoveryKey, version)
+}
+
+func (s *Service) BackupStatus() (storage.BackupStatus, error) {
+	return s.store.BackupStatus(s.now())
+}
+
+func (s *Service) CreateBackup(ctx context.Context, path, version string) (storage.BackupInfo, error) {
+	return s.store.CreateBackupAt(ctx, path, storage.BackupKindManual, version)
+}
+
+func (s *Service) RunAutomaticBackup(ctx context.Context, version string) (storage.BackupStatus, error) {
+	return s.store.RunAutomaticBackup(ctx, version, s.now())
+}
+
+func (s *Service) SetBackupFolder(path string) error { return s.store.SetBackupFolder(path) }
+func (s *Service) ResetBackupFolder() error          { return s.store.ResetBackupFolder() }
+func (s *Service) InspectBackup(path string) (storage.BackupInfo, error) {
+	return s.store.InspectBackup(path)
+}
+
+func (s *Service) RestoreBackup(ctx context.Context, in RestoreBackupInput, version string) (storage.BackupInfo, error) {
+	return s.store.RestoreBackup(ctx, in.Path, storage.RestoreCredential{Password: in.Password, RecoveryKey: in.RecoveryKey}, version)
+}
+
+func (s *Service) ExportData(ctx context.Context, format storage.ExportFormat, path, version string) error {
+	return s.store.ExportData(ctx, format, path, version)
 }
 
 func (s *Service) Bootstrap(ctx context.Context) (Bootstrap, error) {

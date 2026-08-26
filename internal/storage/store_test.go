@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 
 	"c.ash/internal/domain"
-	_ "modernc.org/sqlite"
 )
 
 func TestOpen_MigratesReopensAndLocks(t *testing.T) {
@@ -44,7 +44,7 @@ func TestOpen_MigratesReopensAndLocks(t *testing.T) {
 
 func TestMigration_UpgradesExistingDataWithoutLoss(t *testing.T) {
 	ctx := context.Background()
-	db, err := sql.Open("sqlite", "file:"+t.TempDir()+"/upgrade.db?_pragma=foreign_keys(1)")
+	db, err := sql.Open("sqlite3", "file:"+t.TempDir()+"/upgrade.db?_foreign_keys=on")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,6 +86,36 @@ func TestMigration_UpgradesExistingDataWithoutLoss(t *testing.T) {
 	}
 	if _, err := db.Exec(`INSERT INTO accounts(id,name,type,opening_balance_cents,opening_date,created_at,updated_at,credit_limit_cents,closing_day,due_day) VALUES('card','Cartão','credit_card',0,'2026-08-01','x','x',10000,25,2)`); err != nil {
 		t.Fatalf("credit-card constraint not upgraded: %v", err)
+	}
+}
+
+func TestOpen_CreatesPreMigrationBackup(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cash.db")
+	db, err := sql.Open("sqlite3", "file:"+path+"?_foreign_keys=on")
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := fstest.MapFS{"migrations/001_initial.sql": {Data: mustReadMigration(t, "migrations/001_initial.sql")}}
+	if err := ApplyMigrations(ctx, db, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	backups, err := filepath.Glob(filepath.Join(dir, "backups", "cash-pre-migration-*.cashbackup"))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("backups=%v err=%v", backups, err)
+	}
+	info, err := store.InspectBackup(backups[0])
+	if err != nil || info.Manifest.SchemaVersion != 1 || info.Manifest.Kind != BackupKindPreMigration {
+		t.Fatalf("info=%+v err=%v", info, err)
 	}
 }
 
@@ -356,7 +386,7 @@ func TestStore_DeleteAccountRejectsEveryTransactionLink(t *testing.T) {
 }
 
 func TestApplyMigrations_RollsBackFailedMigration(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+t.TempDir()+"/rollback.db")
+	db, err := sql.Open("sqlite3", "file:"+t.TempDir()+"/rollback.db")
 	if err != nil {
 		t.Fatal(err)
 	}

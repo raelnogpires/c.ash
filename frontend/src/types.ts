@@ -31,3 +31,15 @@ export interface FixedExpensesOverview { expenses: FixedExpense[]; occurrences: 
 export interface BankStatementInput { accountId: string; bank: Bank; fileName: string; base64Data: string }
 export interface BankStatementImportResult { bank: Bank; importedCount: number; duplicateCount: number; ignoredCount: number }
 export interface UpdateStatus { state: UpdateState; currentVersion: string; availableVersion?: string; releaseNotes?: string; publishedAt?: string; lastCheckedAt?: string; downloadedBytes?: number; totalBytes?: number; message?: string }
+export interface SecurityStatus { enabled: boolean; locked: boolean }
+export interface EncryptionResult { status: SecurityStatus; recoveryKey?: string }
+export interface EncryptionInput { password: string; confirmation: string }
+export interface ChangeEncryptionPasswordInput { currentPassword: string; newPassword: string; confirmation: string }
+export interface RecoverEncryptionInput { recoveryKey: string; newPassword: string; confirmation: string }
+export interface UnlockInput { password: string; recoveryKey?: string }
+export interface BackupManifest { formatVersion: number; createdAt: string; applicationVersion: string; schemaVersion: number; encrypted: boolean; payloadSha256: string; kind: string }
+export interface BackupInfo { path: string; manifest: BackupManifest }
+export interface BackupStatus { folder: string; defaultFolder: string; lastAutomaticAt?: string; lastAutomaticPath?: string; lastError?: string; nextDueAt?: string; automaticDue: boolean }
+export interface OperationResult { cancelled: boolean; success: boolean; path?: string }
+export interface BackupDialogResult { cancelled: boolean; success: boolean; backup: BackupInfo }
+export interface RestoreBackupInput { path: string; password?: string; recoveryKey?: string }

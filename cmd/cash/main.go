@@ -33,17 +33,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	store, err := storage.Open(appContext, path)
+	store, err := storage.OpenWithVersion(appContext, path, version)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer store.Close()
 	theme := domain.ThemeLight
-	profile, profileErr := store.Profile(appContext)
-	if profileErr != nil {
-		log.Printf("read saved theme for window icon: %v", profileErr)
-	} else if profile != nil && domain.ValidateTheme(profile.Theme) == nil {
-		theme = profile.Theme
+	if !store.SecurityStatus().Locked {
+		profile, profileErr := store.Profile(appContext)
+		if profileErr != nil {
+			log.Printf("read saved theme for window icon: %v", profileErr)
+		} else if profile != nil && domain.ValidateTheme(profile.Theme) == nil {
+			theme = profile.Theme
+		}
 	}
 	helperName := "cash-updater"
 	if runtime.GOOS == "windows" {
@@ -60,6 +62,7 @@ func main() {
 	app := desktop.New(application.New(store, nil), updaterManager, func(theme domain.Theme) {
 		setPlatformIcon(nativeIcon(theme))
 	})
+	app.SetVersion(version)
 	err = wails.Run(&options.App{
 		Title: "[c]ash", Width: 1180, Height: 760, MinWidth: 960, MinHeight: 640,
 		AssetServer:      &assetserver.Options{Assets: frontendassets.Assets},

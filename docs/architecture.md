@@ -25,7 +25,7 @@ serviços de aplicação em Go
 domínio financeiro em Go
     │ regras e invariantes
     ▼
-persistência SQLite
+persistência SQLite/SQLCipher
 ```
 
 - A UI não calcula saldos nem acessa SQLite diretamente.
@@ -86,7 +86,17 @@ SQLite; um índice parcial impede duas movimentações ativas para a mesma
 ocorrência.
 
 Na inicialização, o aplicativo verifica bloqueio de instância e integridade do
-banco. Falhas nunca devem deixar uma operação parcialmente aplicada.
+banco. Bancos criptografados permanecem fechados até que a senha ou chave de
+recuperação libere a chave do banco. O `Store` gerencia esse ciclo de vida:
+operações comuns compartilham acesso, enquanto backup, conversão e restauração
+pausam o acesso, trocam os arquivos e reabrem a mesma instância usada pelo
+serviço de aplicação.
+
+Conversão e restauração usam arquivos temporários no mesmo volume, `fsync`,
+renomeação atômica, um journal `.operation.json` e cópias `.rollback`. Se o
+processo for interrompido, a abertura seguinte restaura a versão anterior.
+Antes de uma migração pendente em banco existente é criado um backup
+`pre-migration`, fora da retenção automática.
 
 ## Datas e localização
 
@@ -113,19 +123,35 @@ escopo atual.
   atômico. A assinatura de conta, banco, data, natureza, valor, descrição e
   ocorrência evita duplicatas inclusive entre formatos, preservando a reserva
   da assinatura depois de edição ou exclusão pelo usuário.
-- CSV é o formato de exportação tabular.
-- JSON representa uma cópia estruturada completa.
-- O backup integral preserva banco, versão e metadados necessários à restauração.
+- CSV usa UTF-8 com BOM e ponto e vírgula, contém somente movimentações ativas e
+  inclui IDs, nomes de conta/categoria e origem de importação.
+- JSON representa uma cópia estruturada completa e consistente, incluindo
+  lixeira e revisões, sem chaves, preferências locais ou caminhos absolutos.
+- `.cashbackup` é um ZIP versionado com `manifest.json`, `cash.db` e `cash.keys`
+  quando aplicável. O manifesto registra versão, esquema, estado de criptografia
+  e SHA-256 do banco. Exportações são relatórios, não entradas de restauração.
+- O backup automático roda a cada sete dias e conserva as 12 versões automáticas
+  mais recentes. Backups manuais e de segurança nunca são podados.
 
 ## Segurança
 
-A criptografia do banco é opcional e protegida por uma senha conhecida apenas
-pelo usuário. Não haverá chave-mestra ou recuperação remota. Segredos nunca são
-gravados no repositório, nos logs ou em arquivos exportados sem proteção.
+A criptografia integral é opcional e desativada por padrão. O driver fixado
+`github.com/0xCarbon/go-sqlite3` v1.15.1 incorpora SQLCipher e recebe uma chave
+bruta aleatória de 256 bits; a senha nunca é usada diretamente como chave do
+banco. Argon2id deriva a chave de envelopamento com 64 MiB, 3 iterações e até 4
+lanes. AES-256-GCM envolve a chave do banco, que só existe aberta na memória.
 
-Bloqueio de interface e criptografia são conceitos separados: um PIN pode
-impedir acesso casual, enquanto a senha de criptografia protege os dados em
-repouso.
+Uma chave de recuperação aleatória e independente recebe checksum, Base32 sem
+padding e agrupamento para transcrição. `cash.keys` guarda apenas formato,
+parâmetros do KDF, salts, nonces e envelopes. Não há chave-mestra, recuperação
+remota ou keychain. A senha tem pelo menos 12 caracteres e é solicitada em toda
+abertura. Troca e recuperação reescrevem o envelope; ativar/desativar converte o
+banco com `sqlcipher_export` após um backup de segurança não podado.
+
+SQLCipher depende de CGO, compilador C e OpenSSL/libcrypto. Builds e releases
+declaram essa dependência e inspecionam os vínculos dos artefatos. O aviso BSD
+completo está em [Licenças de código aberto](open-source-licenses.md) e nas
+Configurações do aplicativo.
 
 ## Testes e entrega
 
