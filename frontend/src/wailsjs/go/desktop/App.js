@@ -38,12 +38,20 @@ export function DeleteAccount(arg1) {
   return window['go']['desktop']['App']['DeleteAccount'](arg1);
 }
 
+export function DeleteTransactionPermanently(arg1) {
+  return window['go']['desktop']['App']['DeleteTransactionPermanently'](arg1);
+}
+
 export function DismissFixedExpenseOccurrence(arg1) {
   return window['go']['desktop']['App']['DismissFixedExpenseOccurrence'](arg1);
 }
 
 export function FixedExpensesOverview() {
   return window['go']['desktop']['App']['FixedExpensesOverview']();
+}
+
+export function EmptyTransactionTrash() {
+  return window['go']['desktop']['App']['EmptyTransactionTrash']();
 }
 
 export function GetUpdateStatus() {
@@ -60,6 +68,10 @@ export function InstallUpdate() {
 
 export function ListTransactions() {
   return window['go']['desktop']['App']['ListTransactions']();
+}
+
+export function ListTrashedTransactions() {
+  return window['go']['desktop']['App']['ListTrashedTransactions']();
 }
 
 export function CreditCardsOverview() {

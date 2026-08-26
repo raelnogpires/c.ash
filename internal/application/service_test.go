@@ -164,6 +164,60 @@ func TestTransactionLifecycle_TransferEditTrashRestoreAndRevisions(t *testing.T)
 	}
 }
 
+func TestTransactionTrash_ListRestorePermanentDeleteAndEmpty(t *testing.T) {
+	service, store := testService(t)
+	ctx := context.Background()
+	account, err := service.CreateAccount(ctx, AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 10000, OpeningDate: "2026-08-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 1000, AccountID: account.ID, CategoryID: "food", Description: "Almoço", OccurrenceDate: "2026-08-10"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Income, AmountCents: 2000, AccountID: account.ID, CategoryID: "salary", Description: "Extra", OccurrenceDate: "2026-08-11"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.TrashTransaction(ctx, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.TrashTransaction(ctx, second.ID); err != nil {
+		t.Fatal(err)
+	}
+	trashed, err := service.ListTrashedTransactions(ctx)
+	if err != nil || len(trashed) != 2 {
+		t.Fatalf("trashed=%+v err=%v", trashed, err)
+	}
+	if err := service.RestoreTransaction(ctx, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeleteTransactionPermanently(ctx, first.ID); !errors.Is(err, domain.ErrTransactionActive) {
+		t.Fatalf("active permanent delete error=%v", err)
+	}
+	if err := service.TrashTransaction(ctx, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeleteTransactionPermanently(ctx, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if stored, err := store.Transaction(ctx, first.ID); err != nil || stored != nil {
+		t.Fatalf("permanently deleted transaction=%+v err=%v", stored, err)
+	}
+	if err := service.DeleteTransactionPermanently(ctx, "missing"); !errors.Is(err, domain.ErrUnknownTransaction) {
+		t.Fatalf("unknown permanent delete error=%v", err)
+	}
+	if err := service.EmptyTransactionTrash(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if trashed, err := service.ListTrashedTransactions(ctx); err != nil || len(trashed) != 0 {
+		t.Fatalf("trash after empty=%+v err=%v", trashed, err)
+	}
+	if stored, err := store.Transaction(ctx, second.ID); err != nil || stored != nil {
+		t.Fatalf("emptied transaction=%+v err=%v", stored, err)
+	}
+}
+
 func TestImportStatement_IsCumulativeDeduplicatedAndEditable(t *testing.T) {
 	service, _ := testService(t)
 	ctx := context.Background()

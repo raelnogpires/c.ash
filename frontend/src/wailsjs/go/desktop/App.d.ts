@@ -21,7 +21,11 @@ export function CheckForUpdates():Promise<any>;
 
 export function DeleteAccount(arg1:string):Promise<void>;
 
+export function DeleteTransactionPermanently(arg1:string):Promise<void>;
+
 export function DismissFixedExpenseOccurrence(arg1:string):Promise<void>;
+
+export function EmptyTransactionTrash():Promise<void>;
 
 export function FixedExpensesOverview():Promise<application.FixedExpensesOverview>;
 
@@ -32,6 +36,8 @@ export function ImportBankStatement(arg1:application.BankStatementInput):Promise
 export function InstallUpdate():Promise<any>;
 
 export function ListTransactions():Promise<Array<domain.Transaction>>;
+
+export function ListTrashedTransactions():Promise<Array<domain.Transaction>>;
 
 export function CreditCardsOverview():Promise<application.CreditCardsOverview>;
 

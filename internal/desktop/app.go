@@ -103,8 +103,18 @@ func (a *App) TrashTransaction(id string) error {
 func (a *App) RestoreTransaction(id string) error {
 	return safe(a.service.RestoreTransaction(a.context(), id))
 }
+func (a *App) DeleteTransactionPermanently(id string) error {
+	return safe(a.service.DeleteTransactionPermanently(a.context(), id))
+}
+func (a *App) EmptyTransactionTrash() error {
+	return safe(a.service.EmptyTransactionTrash(a.context()))
+}
 func (a *App) ListTransactions() ([]domain.Transaction, error) {
 	v, err := a.service.ListTransactions(a.context())
+	return v, safe(err)
+}
+func (a *App) ListTrashedTransactions() ([]domain.Transaction, error) {
+	v, err := a.service.ListTrashedTransactions(a.context())
 	return v, safe(err)
 }
 func (a *App) CreditCardsOverview() (application.CreditCardsOverview, error) {

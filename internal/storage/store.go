@@ -38,6 +38,7 @@ type Queries interface {
 	Categories(context.Context) ([]domain.Category, error)
 	Category(context.Context, string) (*domain.Category, error)
 	Transactions(context.Context) ([]domain.Transaction, error)
+	TrashedTransactions(context.Context) ([]domain.Transaction, error)
 	Transaction(context.Context, string) (*domain.Transaction, error)
 	FixedExpenses(context.Context) ([]domain.FixedExpense, error)
 	FixedExpense(context.Context, string) (*domain.FixedExpense, error)
@@ -57,6 +58,8 @@ type Queries interface {
 	InsertTransaction(context.Context, domain.Transaction, string) error
 	UpdateTransaction(context.Context, domain.Transaction, string) error
 	SetTransactionDeletedAt(context.Context, string, string, string) error
+	DeleteTransactionRevisions(context.Context, string) error
+	DeleteTransaction(context.Context, string) error
 	InsertTransactionRevision(context.Context, domain.Transaction, string, string) error
 	InsertFixedExpense(context.Context, domain.FixedExpense, string) error
 	UpdateFixedExpense(context.Context, domain.FixedExpense, string) error
@@ -200,6 +203,9 @@ func (s *Store) Category(ctx context.Context, id string) (*domain.Category, erro
 func (s *Store) Transactions(ctx context.Context) ([]domain.Transaction, error) {
 	return s.queries().Transactions(ctx)
 }
+func (s *Store) TrashedTransactions(ctx context.Context) ([]domain.Transaction, error) {
+	return s.queries().TrashedTransactions(ctx)
+}
 func (s *Store) Transaction(ctx context.Context, id string) (*domain.Transaction, error) {
 	return s.queries().Transaction(ctx, id)
 }
@@ -248,6 +254,12 @@ func (s *Store) UpdateTransaction(ctx context.Context, t domain.Transaction, at 
 }
 func (s *Store) SetTransactionDeletedAt(ctx context.Context, id, deletedAt, at string) error {
 	return s.queries().SetTransactionDeletedAt(ctx, id, deletedAt, at)
+}
+func (s *Store) DeleteTransactionRevisions(ctx context.Context, id string) error {
+	return s.queries().DeleteTransactionRevisions(ctx, id)
+}
+func (s *Store) DeleteTransaction(ctx context.Context, id string) error {
+	return s.queries().DeleteTransaction(ctx, id)
 }
 func (s *Store) InsertTransactionRevision(ctx context.Context, t domain.Transaction, action, at string) error {
 	return s.queries().InsertTransactionRevision(ctx, t, action, at)
@@ -363,6 +375,15 @@ func scanTransaction(scanner interface{ Scan(...any) error }) (domain.Transactio
 
 func (q *dbQueries) Transactions(ctx context.Context) ([]domain.Transaction, error) {
 	rows, err := q.q.QueryContext(ctx, transactionSelect+` WHERE t.deleted_at IS NULL ORDER BY t.occurrence_date DESC, t.created_at DESC`)
+	return scanTransactions(rows, err)
+}
+
+func (q *dbQueries) TrashedTransactions(ctx context.Context) ([]domain.Transaction, error) {
+	rows, err := q.q.QueryContext(ctx, transactionSelect+` WHERE t.deleted_at IS NOT NULL ORDER BY t.deleted_at DESC, t.occurrence_date DESC, t.created_at DESC`)
+	return scanTransactions(rows, err)
+}
+
+func scanTransactions(rows *sql.Rows, err error) ([]domain.Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
@@ -493,6 +514,23 @@ func (q *dbQueries) SetTransactionDeletedAt(ctx context.Context, id, deletedAt, 
 		value = deletedAt
 	}
 	result, err := q.q.ExecContext(ctx, `UPDATE transactions SET deleted_at=?, updated_at=? WHERE id=?`, value, at, id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return domain.ErrUnknownTransaction
+	}
+	return err
+}
+
+func (q *dbQueries) DeleteTransactionRevisions(ctx context.Context, id string) error {
+	_, err := q.q.ExecContext(ctx, `DELETE FROM transaction_revisions WHERE transaction_id=?`, id)
+	return err
+}
+
+func (q *dbQueries) DeleteTransaction(ctx context.Context, id string) error {
+	result, err := q.q.ExecContext(ctx, `DELETE FROM transactions WHERE id=?`, id)
 	if err != nil {
 		return err
 	}

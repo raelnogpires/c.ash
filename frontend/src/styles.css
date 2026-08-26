@@ -2878,6 +2878,109 @@ form:has(.field__error:not(:empty)) > .form-error {
 }
 
 .transaction-row__title { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2xs); }
+
+/* Persistent transaction trash */
+.transaction-tabs {
+  width: fit-content;
+  margin-block-end: var(--space-sm);
+  padding: var(--space-3xs);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-input);
+  display: flex;
+  gap: var(--space-3xs);
+  background: var(--color-paper-3);
+}
+
+.transaction-tabs button {
+  min-height: var(--control-height);
+  padding-inline: var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  background: var(--color-transparent);
+  color: var(--color-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.transaction-tabs button.active {
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-selected);
+}
+
+.transaction-tabs button:focus-visible {
+  outline: var(--rule-focus) solid var(--color-focus);
+  outline-offset: var(--space-3xs);
+}
+
+.transaction-tabs .icon {
+  width: var(--space-sm);
+  height: var(--space-sm);
+}
+
+.trash-panel__heading {
+  margin-block-end: var(--space-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.trash-panel__heading h2 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: var(--text-lg);
+}
+
+.trash-panel__heading p {
+  margin: var(--space-3xs) 0 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.transaction-row__trash-actions {
+  grid-area: action;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2xs);
+  flex-wrap: wrap;
+}
+
+.text-button.danger {
+  color: var(--color-negative);
+}
+
+.trash-loading {
+  min-height: var(--empty-height);
+  margin: 0;
+  display: grid;
+  place-items: center;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 700px) {
+  .trash-panel__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .trash-panel__heading .button {
+    width: 100%;
+  }
+
+  .transaction-row__trash-actions {
+    grid-column: main / action;
+    grid-row: auto;
+    justify-content: flex-start;
+  }
+}
 .import-badge {
   display: inline-flex;
   align-items: center;

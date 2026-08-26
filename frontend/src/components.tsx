@@ -1,8 +1,8 @@
 import {
   Archive, ArrowDownRight, ArrowRight, ArrowRightLeft, ArrowUpRight, CalendarClock,
   Check, ChevronRight, CircleDashed, Ellipsis, Equal, Eye, EyeOff, House, List,
-  Palette, PanelLeftClose, PanelLeftOpen, Plus, ReceiptText, ShieldCheck,
-  TriangleAlert, WalletCards, WalletMinimal, X, type LucideIcon,
+  Palette, PanelLeftClose, PanelLeftOpen, Plus, ReceiptText, RotateCcw, ShieldCheck,
+  Trash2, TriangleAlert, WalletCards, WalletMinimal, X, type LucideIcon,
 } from 'lucide-react'
 import { forwardRef, useEffect, useId, useRef, useState, type PropsWithChildren, type ReactNode } from 'react'
 import { formatBRL, formatDate } from './format'
@@ -15,7 +15,7 @@ const iconMap = {
   circleDashed: CircleDashed, ellipsis: Ellipsis, equal: Equal, eye: Eye,
   eyeOff: EyeOff, house: House, list: List, palette: Palette,
   panelLeftClose: PanelLeftClose, panelLeftOpen: PanelLeftOpen, plus: Plus,
-  receipt: ReceiptText, shieldCheck: ShieldCheck, warning: TriangleAlert,
+  receipt: ReceiptText, restore: RotateCcw, shieldCheck: ShieldCheck, trash: Trash2, warning: TriangleAlert,
   wallet: WalletCards, walletMinimal: WalletMinimal, close: X,
 } satisfies Record<string, LucideIcon>
 
@@ -91,15 +91,21 @@ export function AccountActions({ account, onEdit, onRemove }: { account: Account
   </div>
 }
 
-export function TransactionList({ transactions, empty, onEdit, onRemove }: { transactions: Transaction[]; empty?: ReactNode; onEdit?(tx: Transaction, trigger: HTMLElement): void; onRemove?(tx: Transaction, trigger: HTMLElement): void }) {
+export function TransactionList({ transactions, empty, onEdit, onRemove, onRestore, onDeletePermanently, busyTransactionId, label = 'Movimentações' }: { transactions: Transaction[]; empty?: ReactNode; onEdit?(tx: Transaction, trigger: HTMLElement): void; onRemove?(tx: Transaction, trigger: HTMLElement): void; onRestore?(tx: Transaction, trigger: HTMLElement): void; onDeletePermanently?(tx: Transaction, trigger: HTMLElement): void; busyTransactionId?: string; label?: string }) {
   if (!transactions.length) return <>{empty}</>
-  return <ul className="transaction-list" aria-label="Movimentações">
+  return <ul className="transaction-list" aria-label={label}>
     {transactions.map((tx) => <li key={tx.id} className="transaction-row">
       <span className={`transaction-row__glyph ${tx.kind}`} aria-hidden="true"><Icon name={tx.kind === 'income' ? 'arrowUpRight' : tx.kind === 'expense' ? 'arrowDownRight' : 'arrowRightLeft'}/></span>
-      <span className="transaction-row__main"><span className="transaction-row__title"><strong>{tx.description}</strong>{tx.automaticImport && <span className="import-badge">Importação automática</span>}{tx.invoicePaymentId&&<span className="import-badge">Pagamento de fatura</span>}{(tx.installmentCount??1)>1&&<span className="import-badge">{tx.installmentCount}x</span>}</span><small>{tx.kind === 'transfer' ? `${tx.accountName} para ${tx.destinationAccountName}` : `${tx.accountName}${tx.categoryName ? ` · ${tx.categoryName}` : ''}`}</small></span>
+      <span className="transaction-row__main"><span className="transaction-row__title"><strong>{tx.description}</strong>{tx.automaticImport && <span className="import-badge">Importação automática</span>}{tx.invoicePaymentId&&<span className="import-badge">Pagamento de fatura</span>}{(tx.installmentCount??1)>1&&<span className="import-badge">{tx.installmentCount}x</span>}</span><small>{tx.kind === 'transfer' ? `${tx.accountName} para ${tx.destinationAccountName}` : `${tx.accountName}${tx.categoryName ? ` · ${tx.categoryName}` : ''}`}</small>{tx.deletedAt && <small>Removida em {formatDeletedAt(tx.deletedAt)}</small>}</span>
       <span className="transaction-row__date">{formatDate(tx.occurrenceDate)}</span>
       <span className={`transaction-row__amount ${tx.kind}`}><span className="sr-only">{tx.kind === 'income' ? 'Receita' : tx.kind === 'expense' ? 'Despesa' : 'Transferência'}:</span>{tx.kind === 'income' ? '+ ' : tx.kind === 'expense' ? '− ' : ''}{formatBRL(tx.amountCents)}</span>
       {!tx.invoicePaymentId&&(onEdit || onRemove) && <TransactionActions tx={tx} onEdit={onEdit} onRemove={onRemove}/>}
+      {(onRestore || onDeletePermanently) && <span className="transaction-row__trash-actions"><button type="button" className="text-button" disabled={busyTransactionId === tx.id} onClick={event => onRestore?.(tx, event.currentTarget)}><Icon name="restore"/>Restaurar</button><button type="button" className="text-button danger" disabled={busyTransactionId === tx.id} onClick={event => onDeletePermanently?.(tx, event.currentTarget)}>Excluir</button></span>}
     </li>)}
   </ul>
+}
+
+function formatDeletedAt(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date)
 }

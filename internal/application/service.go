@@ -688,6 +688,47 @@ func (s *Service) RestoreTransaction(ctx context.Context, id string) error {
 	})
 }
 
+func (s *Service) DeleteTransactionPermanently(ctx context.Context, id string) error {
+	return s.store.WithTx(ctx, func(q storage.Queries) error {
+		current, err := q.Transaction(ctx, id)
+		if err != nil {
+			return err
+		}
+		if current == nil {
+			return domain.ErrUnknownTransaction
+		}
+		if current.DeletedAt == "" {
+			return domain.ErrTransactionActive
+		}
+		return deleteTrashedTransaction(ctx, q, id)
+	})
+}
+
+func (s *Service) EmptyTransactionTrash(ctx context.Context) error {
+	return s.store.WithTx(ctx, func(q storage.Queries) error {
+		transactions, err := q.TrashedTransactions(ctx)
+		if err != nil {
+			return err
+		}
+		for _, transaction := range transactions {
+			if err := deleteTrashedTransaction(ctx, q, transaction.ID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func deleteTrashedTransaction(ctx context.Context, q storage.Queries, id string) error {
+	if err := q.DeleteTransactionInstallments(ctx, id); err != nil {
+		return err
+	}
+	if err := q.DeleteTransactionRevisions(ctx, id); err != nil {
+		return err
+	}
+	return q.DeleteTransaction(ctx, id)
+}
+
 func (s *Service) prepareTransaction(ctx context.Context, q storage.Queries, tx *domain.Transaction, now time.Time) error {
 	account, err := q.Account(ctx, tx.AccountID)
 	if err != nil {
@@ -733,6 +774,10 @@ func (s *Service) prepareTransaction(ctx context.Context, q storage.Queries, tx 
 
 func (s *Service) ListTransactions(ctx context.Context) ([]domain.Transaction, error) {
 	return s.store.Transactions(ctx)
+}
+
+func (s *Service) ListTrashedTransactions(ctx context.Context) ([]domain.Transaction, error) {
+	return s.store.TrashedTransactions(ctx)
 }
 
 func (s *Service) CreditCardsOverview(ctx context.Context) (CreditCardsOverview, error) {

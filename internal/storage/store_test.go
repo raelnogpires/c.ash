@@ -193,6 +193,80 @@ func TestStore_TransactionSoftDeleteAndRevisionSnapshots(t *testing.T) {
 	}
 }
 
+func TestStore_TrashedTransactionsPersistAndPermanentDeleteCleansDependencies(t *testing.T) {
+	ctx := context.Background()
+	path := t.TempDir() + "/cash.db"
+	store, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	card := domain.Account{ID: "card", Name: "Cartão", Type: domain.AccountCreditCard, OpeningDate: "2026-08-01", CreatedAt: "created", CreditLimitCents: 100000, ClosingDay: 25, DueDay: 2}
+	if err := store.InsertAccount(ctx, card, "created"); err != nil {
+		t.Fatal(err)
+	}
+	invoice := domain.CreditCardInvoice{ID: "invoice", AccountID: card.ID, ReferenceMonth: "2026-09", ClosingDate: "2026-08-25", DueDate: "2026-09-02", Status: domain.InvoiceOpen}
+	older := domain.Transaction{ID: "older", Kind: domain.Expense, AmountCents: 3000, AccountID: card.ID, Description: "Compra antiga", OccurrenceDate: "2026-08-10", CreatedAt: "created", UpdatedAt: "created"}
+	newer := domain.Transaction{ID: "newer", Kind: domain.Expense, AmountCents: 2000, AccountID: card.ID, Description: "Compra recente", OccurrenceDate: "2026-08-11", CreatedAt: "created", UpdatedAt: "created"}
+	if err := store.WithTx(ctx, func(q Queries) error {
+		if err := q.InsertCreditCardInvoice(ctx, invoice, "created"); err != nil {
+			return err
+		}
+		for _, transaction := range []domain.Transaction{older, newer} {
+			if err := q.InsertTransaction(ctx, transaction, "created"); err != nil {
+				return err
+			}
+			if err := q.InsertTransactionRevision(ctx, transaction, "create", "created"); err != nil {
+				return err
+			}
+		}
+		if err := q.InsertCreditCardInstallment(ctx, domain.CreditCardInstallment{ID: "installment", InvoiceID: invoice.ID, TransactionID: older.ID, Description: older.Description, AmountCents: older.AmountCents, InstallmentNumber: 1, InstallmentCount: 1}, "created"); err != nil {
+			return err
+		}
+		if err := q.SetTransactionDeletedAt(ctx, older.ID, "2026-08-16T10:00:00Z", "2026-08-16T10:00:00Z"); err != nil {
+			return err
+		}
+		if err := q.SetTransactionDeletedAt(ctx, newer.ID, "2026-08-16T11:00:00Z", "2026-08-16T11:00:00Z"); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	trashed, err := store.TrashedTransactions(ctx)
+	if err != nil || len(trashed) != 2 || trashed[0].ID != newer.ID || trashed[1].ID != older.ID {
+		t.Fatalf("trashed=%+v err=%v", trashed, err)
+	}
+	if err := store.WithTx(ctx, func(q Queries) error {
+		if err := q.DeleteTransactionInstallments(ctx, older.ID); err != nil {
+			return err
+		}
+		if err := q.DeleteTransactionRevisions(ctx, older.ID); err != nil {
+			return err
+		}
+		return q.DeleteTransaction(ctx, older.ID)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var transactions, revisions, installments int
+	if err := store.db.QueryRow(`SELECT
+		(SELECT COUNT(*) FROM transactions WHERE id='older'),
+		(SELECT COUNT(*) FROM transaction_revisions WHERE transaction_id='older'),
+		(SELECT COUNT(*) FROM credit_card_installments WHERE transaction_id='older')`).Scan(&transactions, &revisions, &installments); err != nil {
+		t.Fatal(err)
+	}
+	if transactions != 0 || revisions != 0 || installments != 0 {
+		t.Fatalf("remaining dependencies=%d/%d/%d", transactions, revisions, installments)
+	}
+}
+
 func TestStore_FailedRevisionRollsBackTransaction(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, t.TempDir()+"/cash.db")

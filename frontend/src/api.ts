@@ -13,7 +13,10 @@ interface CashAPI {
   UpdateTransaction(id: string, input: TransactionInput): Promise<Transaction>
   TrashTransaction(id: string): Promise<void>
   RestoreTransaction(id: string): Promise<void>
+  DeleteTransactionPermanently(id: string): Promise<void>
+  EmptyTransactionTrash(): Promise<void>
   ListTransactions(): Promise<Transaction[]>
+  ListTrashedTransactions(): Promise<Transaction[]>
   CreditCardsOverview(): Promise<CreditCardsOverview>
   PayCreditCardInvoice(id: string, input: CreditCardPaymentInput): Promise<CreditCardPayment>
   ImportBankStatement(input: BankStatementInput): Promise<BankStatementImportResult>
@@ -43,7 +46,10 @@ export const api: CashAPI = {
   UpdateTransaction: async (id, input) => await bindings.UpdateTransaction(id, new application.TransactionInput(input)) as unknown as Transaction,
   TrashTransaction: async (id) => await bindings.TrashTransaction(id),
   RestoreTransaction: async (id) => await bindings.RestoreTransaction(id),
+  DeleteTransactionPermanently: async (id) => await bindings.DeleteTransactionPermanently(id),
+  EmptyTransactionTrash: async () => await bindings.EmptyTransactionTrash(),
   ListTransactions: async () => await bindings.ListTransactions() as unknown as Transaction[],
+  ListTrashedTransactions: async () => await bindings.ListTrashedTransactions() as unknown as Transaction[],
   CreditCardsOverview: async () => await bindings.CreditCardsOverview() as unknown as CreditCardsOverview,
   PayCreditCardInvoice: async (id, input) => await bindings.PayCreditCardInvoice(id, new application.CreditCardPaymentInput(input)) as unknown as CreditCardPayment,
   ImportBankStatement: async (input) => await bindings.ImportBankStatement(new application.BankStatementInput(input)) as unknown as BankStatementImportResult,
