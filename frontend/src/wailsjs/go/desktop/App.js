@@ -6,6 +6,10 @@ export function ArchiveFixedExpense(arg1) {
   return window['go']['desktop']['App']['ArchiveFixedExpense'](arg1);
 }
 
+export function AdjustAccountBalance(arg1, arg2) {
+  return window['go']['desktop']['App']['AdjustAccountBalance'](arg1, arg2);
+}
+
 export function BackupStatus() {
   return window['go']['desktop']['App']['BackupStatus']();
 }

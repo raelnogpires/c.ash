@@ -234,6 +234,10 @@ func (a *App) UpdateAccount(id string, in application.AccountInput) (domain.Acco
 	v, err := a.service.UpdateAccount(a.context(), id, in)
 	return v, safe(err)
 }
+func (a *App) AdjustAccountBalance(id string, in application.BalanceAdjustmentInput) (domain.Transaction, error) {
+	v, err := a.service.AdjustAccountBalance(a.context(), id, in)
+	return v, safe(err)
+}
 func (a *App) DeleteAccount(id string) error {
 	return safe(a.service.DeleteAccount(a.context(), id))
 }
@@ -356,6 +360,9 @@ func safe(err error) error {
 		{domain.ErrInvoiceNotPayable, "Esta fatura já foi paga ou transferida para a seguinte."},
 		{domain.ErrInvalidPaymentAccount, "Escolha uma conta corrente, poupança ou dinheiro para pagar a fatura."},
 		{domain.ErrInvoiceOverpayment, "O pagamento não pode superar o valor em aberto da fatura."},
+		{domain.ErrOpeningBalanceLocked, "Use um ajuste de saldo para contas que já possuem movimentações."},
+		{domain.ErrAdjustmentReason, "Informe o motivo do ajuste de saldo."},
+		{domain.ErrNoBalanceChange, "O saldo informado já é o saldo atual da conta."},
 		{storage.ErrLocked, "Desbloqueie o banco de dados para continuar."},
 		{storage.ErrInvalidCredential, "Senha ou chave de recuperação incorreta."},
 		{storage.ErrWeakPassword, "Use uma senha com pelo menos 12 caracteres."},

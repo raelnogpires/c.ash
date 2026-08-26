@@ -70,6 +70,19 @@ var (
 	ErrInvoiceNotPayable     = errors.New("credit card invoice is not payable")
 	ErrInvalidPaymentAccount = errors.New("invalid invoice payment account")
 	ErrInvoiceOverpayment    = errors.New("invoice payment exceeds outstanding amount")
+	ErrOpeningBalanceLocked  = errors.New("opening balance is locked after ledger activity")
+	ErrAdjustmentReason      = errors.New("adjustment reason is required")
+	ErrNoBalanceChange       = errors.New("target balance equals current balance")
+)
+
+type TransactionOrigin string
+
+const (
+	OriginManual       TransactionOrigin = "manual"
+	OriginImport       TransactionOrigin = "import"
+	OriginFixedExpense TransactionOrigin = "fixed_expense"
+	OriginCardPayment  TransactionOrigin = "card_payment"
+	OriginAdjustment   TransactionOrigin = "adjustment"
 )
 
 type Profile struct {
@@ -91,6 +104,7 @@ type Account struct {
 	CreditLimitCents    int64       `json:"creditLimitCents,omitempty"`
 	ClosingDay          int         `json:"closingDay,omitempty"`
 	DueDay              int         `json:"dueDay,omitempty"`
+	HasLedgerActivity   bool        `json:"hasLedgerActivity"`
 }
 
 type Category struct {
@@ -100,26 +114,28 @@ type Category struct {
 }
 
 type Transaction struct {
-	ID                       string          `json:"id"`
-	Kind                     TransactionKind `json:"kind"`
-	AmountCents              int64           `json:"amountCents"`
-	AccountID                string          `json:"accountId"`
-	AccountName              string          `json:"accountName"`
-	DestinationAccountID     string          `json:"destinationAccountId,omitempty"`
-	DestinationAccountName   string          `json:"destinationAccountName,omitempty"`
-	CategoryID               string          `json:"categoryId,omitempty"`
-	CategoryName             string          `json:"categoryName,omitempty"`
-	Description              string          `json:"description"`
-	OccurrenceDate           string          `json:"occurrenceDate"`
-	CreatedAt                string          `json:"createdAt"`
-	UpdatedAt                string          `json:"updatedAt"`
-	DeletedAt                string          `json:"deletedAt,omitempty"`
-	FixedExpenseOccurrenceID string          `json:"fixedExpenseOccurrenceId,omitempty"`
-	AutomaticImport          bool            `json:"automaticImport"`
-	ImportBank               string          `json:"importBank,omitempty"`
-	ImportKey                string          `json:"-"`
-	InstallmentCount         int             `json:"installmentCount,omitempty"`
-	InvoicePaymentID         string          `json:"invoicePaymentId,omitempty"`
+	ID                       string            `json:"id"`
+	Kind                     TransactionKind   `json:"kind"`
+	AmountCents              int64             `json:"amountCents"`
+	AccountID                string            `json:"accountId"`
+	AccountName              string            `json:"accountName"`
+	DestinationAccountID     string            `json:"destinationAccountId,omitempty"`
+	DestinationAccountName   string            `json:"destinationAccountName,omitempty"`
+	CategoryID               string            `json:"categoryId,omitempty"`
+	CategoryName             string            `json:"categoryName,omitempty"`
+	Description              string            `json:"description"`
+	OccurrenceDate           string            `json:"occurrenceDate"`
+	CreatedAt                string            `json:"createdAt"`
+	UpdatedAt                string            `json:"updatedAt"`
+	DeletedAt                string            `json:"deletedAt,omitempty"`
+	FixedExpenseOccurrenceID string            `json:"fixedExpenseOccurrenceId,omitempty"`
+	AutomaticImport          bool              `json:"automaticImport"`
+	ImportBank               string            `json:"importBank,omitempty"`
+	ImportKey                string            `json:"-"`
+	InstallmentCount         int               `json:"installmentCount,omitempty"`
+	InvoicePaymentID         string            `json:"invoicePaymentId,omitempty"`
+	Origin                   TransactionOrigin `json:"origin"`
+	AdjustmentReason         string            `json:"adjustmentReason,omitempty"`
 }
 
 type CreditCardInvoiceStatus string
@@ -500,7 +516,7 @@ func CalculateDashboard(accounts []Account, transactions []Transaction, now time
 	month := now.In(time.Local).Format("2006-01")
 	for _, tx := range transactions {
 		ApplyTransactionWithAccounts(balances, accountsByID, tx)
-		if strings.HasPrefix(tx.OccurrenceDate, month+"-") {
+		if strings.HasPrefix(tx.OccurrenceDate, month+"-") && tx.Origin != OriginAdjustment {
 			if tx.Kind == Income {
 				result.MonthlyIncomeCents += tx.AmountCents
 			} else if tx.Kind == Expense {

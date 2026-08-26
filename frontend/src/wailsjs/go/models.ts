@@ -28,6 +28,19 @@ export namespace application {
 	        this.openingDebtDueDate = source["openingDebtDueDate"];
 	    }
 	}
+	export class BalanceAdjustmentInput {
+	    targetBalanceCents: number;
+	    occurrenceDate: string;
+	    reason: string;
+
+	    static createFrom(source: any = {}) { return new BalanceAdjustmentInput(source); }
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.targetBalanceCents = source["targetBalanceCents"];
+	        this.occurrenceDate = source["occurrenceDate"];
+	        this.reason = source["reason"];
+	    }
+	}
 	export class BankStatementImportResult {
 	    bank: string;
 	    importedCount: number;
@@ -427,6 +440,7 @@ export namespace domain {
 	    creditLimitCents?: number;
 	    closingDay?: number;
 	    dueDay?: number;
+	    hasLedgerActivity: boolean;
 
 	    static createFrom(source: any = {}) {
 	        return new Account(source);
@@ -444,6 +458,7 @@ export namespace domain {
 	        this.creditLimitCents = source["creditLimitCents"];
 	        this.closingDay = source["closingDay"];
 	        this.dueDay = source["dueDay"];
+	        this.hasLedgerActivity = source["hasLedgerActivity"];
 	    }
 	}
 	export class AccountAllocation {
@@ -657,6 +672,8 @@ export namespace domain {
 	    importBank?: string;
 	    installmentCount?: number;
 	    invoicePaymentId?: string;
+	    origin: string;
+	    adjustmentReason?: string;
 
 	    static createFrom(source: any = {}) {
 	        return new Transaction(source);
@@ -683,6 +700,8 @@ export namespace domain {
 	        this.importBank = source["importBank"];
 	        this.installmentCount = source["installmentCount"];
 	        this.invoicePaymentId = source["invoicePaymentId"];
+	        this.origin = source["origin"];
+	        this.adjustmentReason = source["adjustmentReason"];
 	    }
 	}
 	export class Dashboard {

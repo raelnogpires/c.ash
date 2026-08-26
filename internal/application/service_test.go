@@ -358,15 +358,50 @@ func TestUpdateAccount_ValidatesLinksAndRecalculatesBalance(t *testing.T) {
 	if err := service.RestoreTransaction(ctx, tx.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.UpdateAccount(ctx, account.ID, AccountInput{Name: "Reserva", Type: domain.AccountSavings, OpeningBalanceCents: 200, OpeningDate: "2026-08-01"}); !errors.Is(err, domain.ErrSavingsNegative) {
+	if _, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 800, AccountID: account.ID, Description: "Conta", OccurrenceDate: "2026-08-12"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.UpdateAccount(ctx, account.ID, AccountInput{Name: "Reserva", Type: domain.AccountSavings, OpeningBalanceCents: 1000, OpeningDate: "2026-08-01"}); !errors.Is(err, domain.ErrSavingsNegative) {
 		t.Fatalf("savings conversion error=%v", err)
 	}
-	updated, err := service.UpdateAccount(ctx, account.ID, AccountInput{Name: " Principal nova ", Type: domain.AccountChecking, OpeningBalanceCents: 2000, OpeningDate: "2026-08-01"})
+	if _, err := service.UpdateAccount(ctx, account.ID, AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 2000, OpeningDate: "2026-08-01"}); !errors.Is(err, domain.ErrOpeningBalanceLocked) {
+		t.Fatalf("opening balance error=%v", err)
+	}
+	updated, err := service.UpdateAccount(ctx, account.ID, AccountInput{Name: " Principal nova ", Type: domain.AccountChecking, OpeningBalanceCents: 1000, OpeningDate: "2026-08-01"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.Name != "Principal nova" || updated.CurrentBalanceCents != 1700 || updated.CreatedAt != account.CreatedAt {
+	if updated.Name != "Principal nova" || updated.CurrentBalanceCents != -100 || updated.CreatedAt != account.CreatedAt {
 		t.Fatalf("updated=%+v", updated)
+	}
+}
+
+func TestAdjustAccountBalance_CreatesAuditableExcludedTransaction(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	account, err := service.CreateAccount(ctx, AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 1000, OpeningDate: "2026-08-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	adjustment, err := service.AdjustAccountBalance(ctx, account.ID, BalanceAdjustmentInput{TargetBalanceCents: 750, OccurrenceDate: "2026-08-16", Reason: "Conferência do extrato"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if adjustment.Kind != domain.Expense || adjustment.AmountCents != 250 || adjustment.Origin != domain.OriginAdjustment || adjustment.AdjustmentReason != "Conferência do extrato" {
+		t.Fatalf("adjustment=%+v", adjustment)
+	}
+	bootstrap, err := service.Bootstrap(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bootstrap.Accounts[0].CurrentBalanceCents != 750 || bootstrap.Dashboard.MonthlyExpenseCents != 0 || !bootstrap.Accounts[0].HasLedgerActivity {
+		t.Fatalf("bootstrap=%+v", bootstrap)
+	}
+	if _, err := service.AdjustAccountBalance(ctx, account.ID, BalanceAdjustmentInput{TargetBalanceCents: 750, OccurrenceDate: "2026-08-16", Reason: "igual"}); !errors.Is(err, domain.ErrNoBalanceChange) {
+		t.Fatalf("same balance error=%v", err)
+	}
+	if _, err := service.AdjustAccountBalance(ctx, account.ID, BalanceAdjustmentInput{TargetBalanceCents: 800, OccurrenceDate: "2026-08-16"}); !errors.Is(err, domain.ErrAdjustmentReason) {
+		t.Fatalf("reason error=%v", err)
 	}
 }
 

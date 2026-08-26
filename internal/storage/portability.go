@@ -623,7 +623,7 @@ func exportCSV(ctx context.Context, tx *sql.Tx) ([]byte, error) {
 	output.WriteRune('\ufeff')
 	writer := csv.NewWriter(&output)
 	writer.Comma = ';'
-	header := []string{"id", "tipo", "valor_brl", "data_ocorrencia", "criado_em", "atualizado_em", "conta_origem_id", "conta_origem", "conta_destino_id", "conta_destino", "categoria_id", "categoria", "descricao", "importacao_automatica", "banco_importacao", "chave_importacao"}
+	header := []string{"id", "tipo", "valor_brl", "data_ocorrencia", "criado_em", "atualizado_em", "conta_origem_id", "conta_origem", "conta_destino_id", "conta_destino", "categoria_id", "categoria", "descricao", "origem", "motivo_ajuste", "importacao_automatica", "banco_importacao", "chave_importacao"}
 	if err := writer.Write(header); err != nil {
 		return nil, err
 	}
@@ -633,7 +633,7 @@ func exportCSV(ctx context.Context, tx *sql.Tx) ([]byte, error) {
 			return nil, scanErr
 		}
 		value := strconv.FormatInt(transaction.AmountCents/100, 10) + "," + fmt.Sprintf("%02d", transaction.AmountCents%100)
-		record := []string{transaction.ID, string(transaction.Kind), value, transaction.OccurrenceDate, transaction.CreatedAt, transaction.UpdatedAt, transaction.AccountID, transaction.AccountName, transaction.DestinationAccountID, transaction.DestinationAccountName, transaction.CategoryID, transaction.CategoryName, transaction.Description, strconv.FormatBool(transaction.AutomaticImport), string(transaction.ImportBank), transaction.ImportKey}
+		record := []string{transaction.ID, string(transaction.Kind), value, transaction.OccurrenceDate, transaction.CreatedAt, transaction.UpdatedAt, transaction.AccountID, transaction.AccountName, transaction.DestinationAccountID, transaction.DestinationAccountName, transaction.CategoryID, transaction.CategoryName, transaction.Description, string(transaction.Origin), transaction.AdjustmentReason, strconv.FormatBool(transaction.AutomaticImport), string(transaction.ImportBank), transaction.ImportKey}
 		if err := writer.Write(record); err != nil {
 			return nil, err
 		}

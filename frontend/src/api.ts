@@ -1,4 +1,4 @@
-import type { Account, AccountInput, BackupDialogResult, BackupStatus, BankStatementImportResult, BankStatementInput, BootstrapData, ChangeEncryptionPasswordInput, ConfirmFixedExpenseOccurrenceInput, CreditCardPayment, CreditCardPaymentInput, CreditCardsOverview, EncryptionInput, EncryptionResult, FixedExpense, FixedExpenseInput, FixedExpensesOverview, OnboardingInput, OperationResult, Profile, RecoverEncryptionInput, RestoreBackupInput, SecurityStatus, Theme, Transaction, TransactionInput, UnlockInput, UpdateStatus } from './types'
+import type { Account, AccountInput, BackupDialogResult, BackupStatus, BalanceAdjustmentInput, BankStatementImportResult, BankStatementInput, BootstrapData, ChangeEncryptionPasswordInput, ConfirmFixedExpenseOccurrenceInput, CreditCardPayment, CreditCardPaymentInput, CreditCardsOverview, EncryptionInput, EncryptionResult, FixedExpense, FixedExpenseInput, FixedExpensesOverview, OnboardingInput, OperationResult, Profile, RecoverEncryptionInput, RestoreBackupInput, SecurityStatus, Theme, Transaction, TransactionInput, UnlockInput, UpdateStatus } from './types'
 import * as bindings from './wailsjs/go/desktop/App'
 import { application } from './wailsjs/go/models'
 
@@ -8,6 +8,7 @@ interface CashAPI {
   SkipOnboarding(): Promise<Profile>
   CreateAccount(input: AccountInput): Promise<Account>
   UpdateAccount(id: string, input: AccountInput): Promise<Account>
+  AdjustAccountBalance(id: string, input: BalanceAdjustmentInput): Promise<Transaction>
   DeleteAccount(id: string): Promise<void>
   CreateTransaction(input: TransactionInput): Promise<Transaction>
   UpdateTransaction(id: string, input: TransactionInput): Promise<Transaction>
@@ -54,6 +55,7 @@ export const api: CashAPI = {
   SkipOnboarding: async () => await bindings.SkipOnboarding() as unknown as Profile,
   CreateAccount: async (input) => await bindings.CreateAccount(new application.AccountInput(input)) as unknown as Account,
   UpdateAccount: async (id, input) => await bindings.UpdateAccount(id, new application.AccountInput(input)) as unknown as Account,
+  AdjustAccountBalance: async (id, input) => await bindings.AdjustAccountBalance(id, new application.BalanceAdjustmentInput(input)) as unknown as Transaction,
   DeleteAccount: async (id) => await bindings.DeleteAccount(id),
   CreateTransaction: async (input) => await bindings.CreateTransaction(new application.TransactionInput(input)) as unknown as Transaction,
   UpdateTransaction: async (id, input) => await bindings.UpdateTransaction(id, new application.TransactionInput(input)) as unknown as Transaction,

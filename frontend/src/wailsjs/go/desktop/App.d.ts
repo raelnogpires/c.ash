@@ -8,6 +8,8 @@ import {domain} from '../models';
 
 export function ArchiveFixedExpense(arg1:string):Promise<void>;
 
+export function AdjustAccountBalance(arg1:string,arg2:application.BalanceAdjustmentInput):Promise<domain.Transaction>;
+
 export function BackupStatus():Promise<storage.BackupStatus>;
 
 export function Bootstrap():Promise<application.Bootstrap>;

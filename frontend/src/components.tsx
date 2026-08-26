@@ -78,7 +78,7 @@ function TransactionActions({ tx, onEdit, onRemove }: { tx: Transaction; onEdit?
   </div>
 }
 
-export function AccountActions({ account, onEdit, onRemove }: { account: Account; onEdit(account: Account, trigger: HTMLElement): void; onRemove(account: Account, trigger: HTMLElement): void }) {
+export function AccountActions({ account, onEdit, onAdjust, onRemove }: { account: Account; onEdit(account: Account, trigger: HTMLElement): void; onAdjust?(account: Account, trigger: HTMLElement): void; onRemove(account: Account, trigger: HTMLElement): void }) {
   const [open, setOpen] = useState(false), button = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null)
   useEffect(() => { if (open) menu.current?.querySelector<HTMLButtonElement>('button')?.focus() }, [open])
   const close = () => { setOpen(false); requestAnimationFrame(() => button.current?.focus()) }
@@ -86,6 +86,7 @@ export function AccountActions({ account, onEdit, onRemove }: { account: Account
     <button ref={button} type="button" className="icon-button" aria-label={`Mais ações para ${account.name}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(value => !value)}><Icon name="ellipsis"/></button>
     {open && <div ref={menu} className="action-menu__panel" role="menu" onKeyDown={(event) => { if(event.key==='Escape'){event.preventDefault();close();return}if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const items=Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button'));const index=items.indexOf(document.activeElement as HTMLButtonElement);items[(index+(event.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus()} }}>
       <button type="button" role="menuitem" onClick={() => { setOpen(false); if(button.current) onEdit(account, button.current) }}>Editar</button>
+      {account.type!=='credit_card'&&onAdjust&&<button type="button" role="menuitem" onClick={() => { setOpen(false); if(button.current) onAdjust(account, button.current) }}>Ajustar saldo</button>}
       <button type="button" role="menuitem" className="danger" onClick={() => { setOpen(false); if(button.current) onRemove(account, button.current) }}>Remover</button>
     </div>}
   </div>
@@ -96,7 +97,7 @@ export function TransactionList({ transactions, empty, onEdit, onRemove, onResto
   return <ul className="transaction-list" aria-label={label}>
     {transactions.map((tx) => <li key={tx.id} className="transaction-row">
       <span className={`transaction-row__glyph ${tx.kind}`} aria-hidden="true"><Icon name={tx.kind === 'income' ? 'arrowUpRight' : tx.kind === 'expense' ? 'arrowDownRight' : 'arrowRightLeft'}/></span>
-      <span className="transaction-row__main"><span className="transaction-row__title"><strong>{tx.description}</strong>{tx.automaticImport && <span className="import-badge">Importação automática</span>}{tx.invoicePaymentId&&<span className="import-badge">Pagamento de fatura</span>}{(tx.installmentCount??1)>1&&<span className="import-badge">{tx.installmentCount}x</span>}</span><small>{tx.kind === 'transfer' ? `${tx.accountName} para ${tx.destinationAccountName}` : `${tx.accountName}${tx.categoryName ? ` · ${tx.categoryName}` : ''}`}</small>{tx.deletedAt && <small>Removida em {formatDeletedAt(tx.deletedAt)}</small>}</span>
+      <span className="transaction-row__main"><span className="transaction-row__title"><strong>{tx.description}</strong>{tx.automaticImport && <span className="import-badge">Importação automática</span>}{tx.invoicePaymentId&&<span className="import-badge">Pagamento de fatura</span>}{tx.origin==='adjustment'&&<span className="import-badge">Ajuste de saldo</span>}{(tx.installmentCount??1)>1&&<span className="import-badge">{tx.installmentCount}x</span>}</span><small>{tx.kind === 'transfer' ? `${tx.accountName} para ${tx.destinationAccountName}` : `${tx.accountName}${tx.categoryName ? ` · ${tx.categoryName}` : ''}`}</small>{tx.deletedAt && <small>Removida em {formatDeletedAt(tx.deletedAt)}</small>}</span>
       <span className="transaction-row__date">{formatDate(tx.occurrenceDate)}</span>
       <span className={`transaction-row__amount ${tx.kind}`}><span className="sr-only">{tx.kind === 'income' ? 'Receita' : tx.kind === 'expense' ? 'Despesa' : 'Transferência'}:</span>{tx.kind === 'income' ? '+ ' : tx.kind === 'expense' ? '− ' : ''}{formatBRL(tx.amountCents)}</span>
       {!tx.invoicePaymentId&&(onEdit || onRemove) && <TransactionActions tx={tx} onEdit={onEdit} onRemove={onRemove}/>}

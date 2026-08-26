@@ -51,6 +51,12 @@ type TransactionInput struct {
 	InstallmentCount     int                    `json:"installmentCount"`
 }
 
+type BalanceAdjustmentInput struct {
+	TargetBalanceCents int64  `json:"targetBalanceCents"`
+	OccurrenceDate     string `json:"occurrenceDate"`
+	Reason             string `json:"reason"`
+}
+
 type CreditCardPaymentInput struct {
 	AccountID      string `json:"accountId"`
 	AmountCents    int64  `json:"amountCents"`
@@ -228,6 +234,11 @@ func (s *Service) Bootstrap(ctx context.Context) (Bootstrap, error) {
 	}
 	for index := range accounts {
 		accounts[index].CurrentBalanceCents = balances[accounts[index].ID]
+		linked, linkedErr := s.store.AccountTransactions(ctx, accounts[index].ID)
+		if linkedErr != nil {
+			return Bootstrap{}, linkedErr
+		}
+		accounts[index].HasLedgerActivity = len(linked) > 0
 	}
 	theme := domain.Theme("")
 	if p != nil {
@@ -337,6 +348,9 @@ func (s *Service) UpdateAccount(ctx context.Context, id string, in AccountInput)
 				return domain.ErrAccountInUse
 			}
 		}
+		if len(linked) > 0 && in.OpeningBalanceCents != current.OpeningBalanceCents {
+			return domain.ErrOpeningBalanceLocked
+		}
 		opening, _ := domain.ParseCivilDate(in.OpeningDate)
 		for _, tx := range linked {
 			if tx.AutomaticImport {
@@ -401,6 +415,70 @@ func (s *Service) UpdateAccount(ctx context.Context, id string, in AccountInput)
 	return updated, err
 }
 
+func (s *Service) AdjustAccountBalance(ctx context.Context, id string, in BalanceAdjustmentInput) (domain.Transaction, error) {
+	now := s.now()
+	at := now.UTC().Format(time.RFC3339Nano)
+	reason := strings.TrimSpace(in.Reason)
+	if reason == "" {
+		return domain.Transaction{}, domain.ErrAdjustmentReason
+	}
+	if _, err := domain.ParseCivilDate(in.OccurrenceDate); err != nil {
+		return domain.Transaction{}, err
+	}
+	var adjustment domain.Transaction
+	err := s.store.WithTx(ctx, func(q storage.Queries) error {
+		account, err := q.Account(ctx, id)
+		if err != nil {
+			return err
+		}
+		if account == nil {
+			return domain.ErrUnknownAccount
+		}
+		if account.Type == domain.AccountCreditCard {
+			return domain.ErrCardTransaction
+		}
+		transactions, err := q.Transactions(ctx)
+		if err != nil {
+			return err
+		}
+		accounts, err := q.Accounts(ctx)
+		if err != nil {
+			return err
+		}
+		balances := make(map[string]int64, len(accounts))
+		accountsByID := make(map[string]domain.Account, len(accounts))
+		for _, item := range accounts {
+			balances[item.ID] = item.OpeningBalanceCents
+			accountsByID[item.ID] = item
+		}
+		for _, transaction := range transactions {
+			domain.ApplyTransactionWithAccounts(balances, accountsByID, transaction)
+		}
+		difference := in.TargetBalanceCents - balances[id]
+		if difference == 0 {
+			return domain.ErrNoBalanceChange
+		}
+		kind, amount := domain.Income, difference
+		if difference < 0 {
+			kind, amount = domain.Expense, -difference
+		}
+		adjustment = domain.Transaction{ID: newID(), Kind: kind, AmountCents: amount, AccountID: id,
+			Description: "Ajuste de saldo: " + reason, OccurrenceDate: in.OccurrenceDate, CreatedAt: at, UpdatedAt: at,
+			Origin: domain.OriginAdjustment, AdjustmentReason: reason, InstallmentCount: 1}
+		if err := s.prepareTransaction(ctx, q, &adjustment, now); err != nil {
+			return err
+		}
+		if err := domain.ValidateSavingsBalances(accounts, append(transactions, adjustment)); err != nil {
+			return err
+		}
+		if err := q.InsertTransaction(ctx, adjustment, at); err != nil {
+			return err
+		}
+		return q.InsertTransactionRevision(ctx, adjustment, "create", at)
+	})
+	return adjustment, err
+}
+
 func (s *Service) DeleteAccount(ctx context.Context, id string) error {
 	return s.store.WithTx(ctx, func(q storage.Queries) error {
 		account, err := q.Account(ctx, id)
@@ -435,7 +513,7 @@ func (s *Service) CreateTransaction(ctx context.Context, in TransactionInput) (d
 	if count == 0 {
 		count = 1
 	}
-	tx := domain.Transaction{ID: newID(), Kind: in.Kind, AmountCents: in.AmountCents, AccountID: in.AccountID, DestinationAccountID: in.DestinationAccountID, CategoryID: in.CategoryID, Description: strings.TrimSpace(in.Description), OccurrenceDate: in.OccurrenceDate, InstallmentCount: count, CreatedAt: at, UpdatedAt: at}
+	tx := domain.Transaction{ID: newID(), Kind: in.Kind, AmountCents: in.AmountCents, AccountID: in.AccountID, DestinationAccountID: in.DestinationAccountID, CategoryID: in.CategoryID, Description: strings.TrimSpace(in.Description), OccurrenceDate: in.OccurrenceDate, InstallmentCount: count, CreatedAt: at, UpdatedAt: at, Origin: domain.OriginManual}
 	err := s.store.WithTx(ctx, func(q storage.Queries) error {
 		if err := s.prepareTransaction(ctx, q, &tx, now); err != nil {
 			return err
@@ -545,7 +623,7 @@ func (s *Service) importStatementEntries(ctx context.Context, accountID string, 
 				result.DuplicateCount++
 				continue
 			}
-			tx := domain.Transaction{ID: newID(), Kind: entry.Kind, AmountCents: entry.AmountCents, AccountID: accountID, Description: strings.TrimSpace(entry.Description), OccurrenceDate: entry.Date, CreatedAt: at, UpdatedAt: at, AutomaticImport: true, ImportBank: string(bank), ImportKey: key}
+			tx := domain.Transaction{ID: newID(), Kind: entry.Kind, AmountCents: entry.AmountCents, AccountID: accountID, Description: strings.TrimSpace(entry.Description), OccurrenceDate: entry.Date, CreatedAt: at, UpdatedAt: at, AutomaticImport: true, ImportBank: string(bank), ImportKey: key, Origin: domain.OriginImport}
 			if err := s.prepareTransaction(ctx, q, &tx, now); err != nil {
 				return err
 			}
@@ -1057,7 +1135,7 @@ func (s *Service) PayCreditCardInvoice(ctx context.Context, invoiceID string, in
 		payment.TransactionID = newID()
 		tx := domain.Transaction{ID: payment.TransactionID, Kind: domain.Transfer, AmountCents: in.AmountCents,
 			AccountID: source.ID, DestinationAccountID: card.ID, Description: "Pagamento da fatura " + card.Name,
-			OccurrenceDate: in.OccurrenceDate, InstallmentCount: 1, InvoicePaymentID: payment.ID, CreatedAt: at, UpdatedAt: at}
+			OccurrenceDate: in.OccurrenceDate, InstallmentCount: 1, InvoicePaymentID: payment.ID, CreatedAt: at, UpdatedAt: at, Origin: domain.OriginCardPayment}
 		if err := s.prepareTransaction(ctx, q, &tx, s.now()); err != nil {
 			return err
 		}
@@ -1287,7 +1365,7 @@ func (s *Service) ConfirmFixedExpenseOccurrence(ctx context.Context, id string, 
 		if occurrence.Status != domain.FixedExpensePending {
 			return domain.ErrOccurrenceClosed
 		}
-		tx = domain.Transaction{ID: newID(), Kind: domain.Expense, AmountCents: in.AmountCents, AccountID: occurrence.AccountID, CategoryID: occurrence.CategoryID, Description: occurrence.Description, OccurrenceDate: in.OccurrenceDate, FixedExpenseOccurrenceID: occurrence.ID, CreatedAt: at, UpdatedAt: at}
+		tx = domain.Transaction{ID: newID(), Kind: domain.Expense, AmountCents: in.AmountCents, AccountID: occurrence.AccountID, CategoryID: occurrence.CategoryID, Description: occurrence.Description, OccurrenceDate: in.OccurrenceDate, FixedExpenseOccurrenceID: occurrence.ID, CreatedAt: at, UpdatedAt: at, Origin: domain.OriginFixedExpense}
 		if err := s.prepareTransaction(ctx, q, &tx, now); err != nil {
 			return err
 		}

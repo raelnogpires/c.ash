@@ -5,14 +5,16 @@ export type Bank = 'itau' | 'bradesco' | 'inter'
 export type UpdateState = 'disabled' | 'idle' | 'checking' | 'upToDate' | 'available' | 'downloading' | 'installing' | 'error'
 
 export interface Profile { displayName: string; currency: 'BRL'; theme: Theme | ''; onboardingStatus: 'completed' | 'skipped'; balancesHidden?: boolean }
-export interface Account { id: string; name: string; type: AccountType; openingBalanceCents: number; openingDate: string; createdAt: string; currentBalanceCents: number; creditLimitCents?: number; closingDay?: number; dueDay?: number }
+export interface Account { id: string; name: string; type: AccountType; openingBalanceCents: number; openingDate: string; createdAt: string; currentBalanceCents: number; creditLimitCents?: number; closingDay?: number; dueDay?: number; hasLedgerActivity?: boolean }
 export interface Category { id: string; name: string; kind: TransactionKind }
-export interface Transaction { id: string; kind: TransactionKind; amountCents: number; accountId: string; accountName: string; destinationAccountId?: string; destinationAccountName?: string; categoryId?: string; categoryName?: string; description: string; occurrenceDate: string; createdAt: string; updatedAt: string; deletedAt?: string; automaticImport?: boolean; importBank?: Bank; installmentCount?: number; invoicePaymentId?: string }
+export type TransactionOrigin = 'manual' | 'import' | 'fixed_expense' | 'card_payment' | 'adjustment'
+export interface Transaction { id: string; kind: TransactionKind; amountCents: number; accountId: string; accountName: string; destinationAccountId?: string; destinationAccountName?: string; categoryId?: string; categoryName?: string; description: string; occurrenceDate: string; createdAt: string; updatedAt: string; deletedAt?: string; automaticImport?: boolean; importBank?: Bank; installmentCount?: number; invoicePaymentId?: string; origin?: TransactionOrigin; adjustmentReason?: string }
 export interface BalanceHistoryPoint { month: string; label: string; balanceCents: number }
 export interface AccountAllocation { accountId: string; accountName: string; balanceCents: number }
 export interface Dashboard { availableBalanceCents: number; totalBalanceCents?: number; pendingFixedExpensesCents?: number; pendingFixedExpenseCount?: number; monthlyIncomeCents: number; monthlyExpenseCents: number; recentTransactions: Transaction[]; balanceHistory?: BalanceHistoryPoint[]; accountAllocations?: AccountAllocation[]; hasNegativeBalance: boolean; creditCardDebtCents?: number; upcomingInvoices?: CreditCardInvoice[] }
 export interface BootstrapData { profile: Profile | null; setup: boolean; accounts: Account[]; categories: Category[]; dashboard: Dashboard; theme: Theme | '' }
 export interface AccountInput { name: string; type: AccountType; openingBalanceCents: number; openingDate: string; creditLimitCents?: number; closingDay?: number; dueDay?: number; openingDebtCents?: number; openingDebtDueDate?: string }
+export interface BalanceAdjustmentInput { targetBalanceCents: number; occurrenceDate: string; reason: string }
 export interface OnboardingInput { displayName: string; currency: 'BRL'; theme: Theme; firstAccount: AccountInput }
 export interface TransactionInput { kind: TransactionKind; amountCents: number; accountId: string; destinationAccountId: string; categoryId: string; description: string; occurrenceDate: string; installmentCount?: number }
 export type CreditCardInvoiceStatus = 'open' | 'closed' | 'paid' | 'rolled_over'

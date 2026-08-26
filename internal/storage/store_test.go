@@ -19,7 +19,7 @@ func TestOpen_MigratesReopensAndLocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	var migrations int
-	if err := first.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrations); err != nil || migrations != 6 {
+	if err := first.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrations); err != nil || migrations != latestSchemaVersion() {
 		t.Fatalf("migrations=%d err=%v", migrations, err)
 	}
 	categories, err := first.Categories(ctx)

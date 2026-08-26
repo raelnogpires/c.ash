@@ -482,7 +482,7 @@ COALESCE(t.category_id, ''), COALESCE(c.name, ''), t.description,
 t.occurrence_date, t.created_at, t.updated_at, COALESCE(t.deleted_at, ''),
 COALESCE(t.fixed_expense_occurrence_id, ''), t.automatic_import,
 COALESCE(t.import_bank, ''), COALESCE(t.import_key, ''), t.installment_count,
-COALESCE(t.invoice_payment_id, '')
+COALESCE(t.invoice_payment_id, ''), t.origin, COALESCE(t.adjustment_reason, '')
 FROM transactions t
 JOIN accounts a ON a.id=t.account_id
 LEFT JOIN accounts destination ON destination.id=t.destination_account_id
@@ -493,7 +493,8 @@ func scanTransaction(scanner interface{ Scan(...any) error }) (domain.Transactio
 	err := scanner.Scan(&t.ID, &t.Kind, &t.AmountCents, &t.AccountID, &t.AccountName,
 		&t.DestinationAccountID, &t.DestinationAccountName, &t.CategoryID, &t.CategoryName,
 		&t.Description, &t.OccurrenceDate, &t.CreatedAt, &t.UpdatedAt, &t.DeletedAt, &t.FixedExpenseOccurrenceID,
-		&t.AutomaticImport, &t.ImportBank, &t.ImportKey, &t.InstallmentCount, &t.InvoicePaymentID)
+		&t.AutomaticImport, &t.ImportBank, &t.ImportKey, &t.InstallmentCount, &t.InvoicePaymentID,
+		&t.Origin, &t.AdjustmentReason)
 	return t, err
 }
 
@@ -605,7 +606,15 @@ func (q *dbQueries) InsertTransaction(ctx context.Context, t domain.Transaction,
 	if t.InvoicePaymentID != "" {
 		payment = t.InvoicePaymentID
 	}
-	_, err := q.q.ExecContext(ctx, `INSERT INTO transactions(id,kind,amount_cents,account_id,destination_account_id,category_id,description,occurrence_date,created_at,updated_at,fixed_expense_occurrence_id,automatic_import,import_bank,import_key,installment_count,invoice_payment_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t.ID, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, at, at, fixedOccurrence, t.AutomaticImport, importBank, importKey, count, payment)
+	origin := t.Origin
+	if origin == "" {
+		origin = domain.OriginManual
+	}
+	var adjustmentReason any
+	if t.AdjustmentReason != "" {
+		adjustmentReason = t.AdjustmentReason
+	}
+	_, err := q.q.ExecContext(ctx, `INSERT INTO transactions(id,kind,amount_cents,account_id,destination_account_id,category_id,description,occurrence_date,created_at,updated_at,fixed_expense_occurrence_id,automatic_import,import_bank,import_key,installment_count,invoice_payment_id,origin,adjustment_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t.ID, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, at, at, fixedOccurrence, t.AutomaticImport, importBank, importKey, count, payment, origin, adjustmentReason)
 	return err
 }
 
@@ -621,7 +630,7 @@ func (q *dbQueries) UpdateTransaction(ctx context.Context, t domain.Transaction,
 	if count == 0 {
 		count = 1
 	}
-	result, err := q.q.ExecContext(ctx, `UPDATE transactions SET kind=?, amount_cents=?, account_id=?, destination_account_id=?, category_id=?, description=?, occurrence_date=?, installment_count=?, updated_at=? WHERE id=?`, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, count, at, t.ID)
+	result, err := q.q.ExecContext(ctx, `UPDATE transactions SET kind=?, amount_cents=?, account_id=?, destination_account_id=?, category_id=?, description=?, occurrence_date=?, installment_count=?, adjustment_reason=?, updated_at=? WHERE id=?`, t.Kind, t.AmountCents, t.AccountID, destination, category, t.Description, t.OccurrenceDate, count, t.AdjustmentReason, at, t.ID)
 	if err != nil {
 		return err
 	}
