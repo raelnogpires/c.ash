@@ -44,6 +44,7 @@ var (
 	dateAtStart  = regexp.MustCompile(`^\s*(\d{2})[/-](\d{2})(?:[/-](\d{2}|\d{4}))?\b\s*`)
 	dateAnywhere = regexp.MustCompile(`\d{2}[/-]\d{2}[/-]\d{4}\b`)
 	fullDate     = regexp.MustCompile(`\b\d{2}[/-]\d{2}[/-](\d{4})\b`)
+	dateRange    = regexp.MustCompile(`(?i)\b(\d{2}[/-]\d{2}[/-]\d{4})\s*(?:a|at[eé]|[-–—])\s*(\d{2}[/-]\d{2}[/-]\d{4})\b`)
 	amountAtEnd  = regexp.MustCompile(`(?i)(?:R\$\s*)?([+-]?\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s*([DC]|[-+])?\s*$`)
 	space        = regexp.MustCompile(`\s+`)
 	nonEntry     = regexp.MustCompile(`(?i)^(saldo|total|resumo)\b`)
@@ -145,6 +146,7 @@ func ParseText(text string, bank Bank, fallbackYear int) ([]Entry, error) {
 		return nil, domain.ErrStatementEmpty
 	}
 	year := statementYear(text, fallbackYear)
+	interval, hasInterval := statementInterval(text)
 	// PDF text streams often lose visual row breaks. Dates are reliable row anchors.
 	text = dateAnywhere.ReplaceAllStringFunc(text, func(value string) string { return "\n" + value })
 	lines := strings.Split(text, "\n")
@@ -157,7 +159,7 @@ func ParseText(text string, bank Bank, fallbackYear int) ([]Entry, error) {
 		}
 		if dateAtStart.MatchString(line) {
 			if pending != "" {
-				if entry, ok := parseLine(pending, bank, year); ok {
+				if entry, ok := parseLine(pending, bank, year, interval, hasInterval); ok {
 					entries = append(entries, entry)
 				}
 			}
@@ -166,14 +168,14 @@ func ParseText(text string, bank Bank, fallbackYear int) ([]Entry, error) {
 			pending += " " + line
 		}
 		if pending != "" {
-			if entry, ok := parseLine(pending, bank, year); ok {
+			if entry, ok := parseLine(pending, bank, year, interval, hasInterval); ok {
 				entries = append(entries, entry)
 				pending = ""
 			}
 		}
 	}
 	if pending != "" {
-		if entry, ok := parseLine(pending, bank, year); ok {
+		if entry, ok := parseLine(pending, bank, year, interval, hasInterval); ok {
 			entries = append(entries, entry)
 		}
 	}
@@ -187,7 +189,12 @@ func (bank Bank) Valid() bool {
 	return bank == BankItau || bank == BankBradesco || bank == BankInter
 }
 
-func parseLine(line string, bank Bank, fallbackYear int) (Entry, bool) {
+type statementDateInterval struct {
+	start time.Time
+	end   time.Time
+}
+
+func parseLine(line string, bank Bank, fallbackYear int, interval statementDateInterval, hasInterval bool) (Entry, bool) {
 	dateMatch := dateAtStart.FindStringSubmatch(line)
 	if dateMatch == nil {
 		return Entry{}, false
@@ -202,7 +209,7 @@ func parseLine(line string, bank Bank, fallbackYear int) (Entry, bool) {
 	if description == "" || nonEntry.MatchString(description) {
 		return Entry{}, false
 	}
-	date, err := civilDate(dateMatch[1], dateMatch[2], dateMatch[3], fallbackYear)
+	date, err := resolveStatementDate(dateMatch[1], dateMatch[2], dateMatch[3], fallbackYear, interval, hasInterval)
 	if err != nil {
 		return Entry{}, false
 	}
@@ -213,6 +220,56 @@ func parseLine(line string, bank Bank, fallbackYear int) (Entry, bool) {
 	marker := strings.ToUpper(strings.TrimSpace(amountMatch[2]))
 	kind := inferKind(bank, description, amountMatch[1], marker)
 	return Entry{Kind: kind, AmountCents: amount, Description: description, Date: date}, true
+}
+
+func resolveStatementDate(day, month, year string, fallbackYear int, interval statementDateInterval, hasInterval bool) (string, error) {
+	if year != "" || !hasInterval {
+		return civilDate(day, month, year, fallbackYear)
+	}
+	var match string
+	for candidateYear := interval.start.Year(); candidateYear <= interval.end.Year(); candidateYear++ {
+		candidate, err := civilDate(day, month, "", candidateYear)
+		if err != nil {
+			continue
+		}
+		parsed, _ := time.Parse("2006-01-02", candidate)
+		if parsed.Before(interval.start) || parsed.After(interval.end) {
+			continue
+		}
+		if match != "" {
+			return "", errors.New("ambiguous statement date")
+		}
+		match = candidate
+	}
+	if match == "" {
+		return "", errors.New("statement date outside interval")
+	}
+	return match, nil
+}
+
+func statementInterval(text string) (statementDateInterval, bool) {
+	match := dateRange.FindStringSubmatch(text)
+	if match == nil {
+		return statementDateInterval{}, false
+	}
+	first, firstErr := parseStatementFullDate(match[1])
+	second, secondErr := parseStatementFullDate(match[2])
+	if firstErr != nil || secondErr != nil {
+		return statementDateInterval{}, false
+	}
+	if second.Before(first) {
+		first, second = second, first
+	}
+	return statementDateInterval{start: first, end: second}, true
+}
+
+func parseStatementFullDate(value string) (time.Time, error) {
+	value = strings.ReplaceAll(value, "-", "/")
+	date, err := time.Parse("02/01/2006", value)
+	if err != nil || date.Format("02/01/2006") != value {
+		return time.Time{}, errors.New("invalid statement interval")
+	}
+	return date, nil
 }
 
 func inferKind(_ Bank, description, rawAmount, marker string) domain.TransactionKind {

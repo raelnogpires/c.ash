@@ -36,6 +36,58 @@ func TestParseText_SupportedBankLayouts(t *testing.T) {
 	}
 }
 
+func TestParseText_InfersYearlessDatesInsideStatementInterval(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want []string
+	}{
+		{
+			name: "ascending December to January",
+			text: "Período 20/12/2025 a 20/01/2026\n21/12 COMPRA DEZEMBRO 10,00 D\n02/01 PIX RECEBIDO JANEIRO 20,00 C",
+			want: []string{"2025-12-21", "2026-01-02"},
+		},
+		{
+			name: "descending January to December",
+			text: "Período 20/01/2026 - 20/12/2025\n02/01 PIX RECEBIDO JANEIRO 20,00 C\n21/12 COMPRA DEZEMBRO 10,00 D",
+			want: []string{"2026-01-02", "2025-12-21"},
+		},
+		{
+			name: "leap day",
+			text: "Período 20/02/2024 até 05/03/2024\n29/02 PIX RECEBIDO 20,00 C\n29/02 REPETIDO 20,00 C\n29/02/2023 DATA INVÁLIDA 10,00 D",
+			want: []string{"2024-02-29", "2024-02-29"},
+		},
+		{
+			name: "malformed and outside rows",
+			text: "Período 20/12/2025 a 20/01/2026\n31/02 DATA INVÁLIDA 10,00 D\n19/12 FORA 20,00 D\n21/12 VÁLIDA 30,00 D\n21/01 FORA 40,00 D",
+			want: []string{"2025-12-21"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			entries, err := ParseText(tc.text, BankItau, 2030)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != len(tc.want) {
+				t.Fatalf("entries=%+v want dates=%v", entries, tc.want)
+			}
+			for index, want := range tc.want {
+				if entries[index].Date != want {
+					t.Fatalf("entry[%d].Date=%s want=%s", index, entries[index].Date, want)
+				}
+			}
+		})
+	}
+}
+
+func TestParseText_UsesExistingFallbackWithoutUsableRange(t *testing.T) {
+	entries, err := ParseText("Período inválido 32/12/2025 a 20/01/2026\n02/01 PIX RECEBIDO 20,00 C", BankInter, 2030)
+	if err != nil || len(entries) != 1 || entries[0].Date != "2025-01-02" {
+		t.Fatalf("entries=%+v err=%v", entries, err)
+	}
+}
+
 func TestParseOFX_SupportsSGMLAndXML(t *testing.T) {
 	tests := []struct {
 		name string
