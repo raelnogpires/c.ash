@@ -789,12 +789,3 @@ func copyFileAtomic(source, destination string, mode os.FileMode) error {
 	}
 	return writeFileAtomic(destination, data, mode)
 }
-
-func syncDirectory(path string) error {
-	directory, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer directory.Close()
-	return directory.Sync()
-}
