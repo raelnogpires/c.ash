@@ -60,8 +60,10 @@ export function Onboarding({ initialTheme, onComplete, onSkip }: { initialTheme:
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); const data = new FormData(event.currentTarget); const account = accountFromForm(data, 'account-')
     if (typeof account === 'string') return setState({ busy: false, error: account })
+    const reserveTargetCents=parseBRL(String(data.get('reserveTarget')))
+    if(reserveTargetCents===null||reserveTargetCents<0)return setState({busy:false,error:'Informe um alvo de reserva válido.'})
     setState({ busy: true, error: '' })
-    try { await onComplete({ displayName: String(data.get('displayName')).trim(), currency: 'BRL', theme, firstAccount: account }); setState({ busy: false, error: '', status: 'success' }) }
+    try { await onComplete({ displayName: String(data.get('displayName')).trim(), currency: 'BRL', theme, firstAccount: account, reserveTargetCents }); setState({ busy: false, error: '', status: 'success' }) }
     catch (error) { setState({ busy: false, error: errorMessage(error) }) }
   }
   const skip = async () => { setState({ busy: true, error: '' }); try { await onSkip(); setState({ busy: false, error: '', status: 'success' }) } catch (error) { setState({ busy: false, error: errorMessage(error) }) } }
@@ -72,6 +74,7 @@ export function Onboarding({ initialTheme, onComplete, onSkip }: { initialTheme:
       <form onSubmit={submit} aria-busy={state.busy ? true : undefined} data-state={status} aria-describedby={state.error ? errorId : undefined}><label className="field field--wide" htmlFor={displayNameId}><span>Como podemos chamar você?</span><input id={displayNameId} name="displayName" autoFocus required aria-required="true" autoComplete="name" placeholder="Seu primeiro nome" /></label>
         <fieldset className="theme-picker"><legend>Aparência</legend>{(['light','dark','gothic'] as Theme[]).map((item) => <label key={item} className={`theme-choice theme-choice--${item}`}><input type="radio" name="theme" value={item} checked={theme===item} onChange={() => setTheme(item)} /><span className="theme-preview" aria-hidden="true"><i/><i/><i/></span><span>{item==='light'?'Claro':item==='dark'?'Escuro':'Gótico'}</span></label>)}</fieldset>
         <div className="section-rule"><span>Sua primeira conta</span></div><AccountFields prefix="account-" invalidBalance={state.error.includes('saldo válido')} balanceErrorId={errorId} />
+        <div className="section-rule"><span>Reserva de emergência</span></div><label className="field field--wide"><span>Quanto você quer reservar?</span><div className="money-input"><span>R$</span><input name="reserveTarget" inputMode="decimal" defaultValue="0,00" placeholder="0,00" required aria-required="true"/></div><small>Um alvo zero não cria a meta e nenhum dinheiro será reservado automaticamente.</small></label>
         <FormError id={errorId} message={state.error} />
         <div className="form-actions"><Button type="button" kind="ghost" disabled={state.busy} loading={state.busy} state={status} onClick={skip}>Fazer isso depois</Button><Button type="submit" disabled={state.busy} loading={state.busy} state={status}>{state.busy ? 'Salvando…' : 'Começar agora'} <Icon name="arrowRight" /></Button></div>
       </form>

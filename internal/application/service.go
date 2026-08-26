@@ -34,10 +34,11 @@ type AccountInput struct {
 }
 
 type OnboardingInput struct {
-	DisplayName  string       `json:"displayName"`
-	Currency     string       `json:"currency"`
-	Theme        domain.Theme `json:"theme"`
-	FirstAccount AccountInput `json:"firstAccount"`
+	DisplayName        string       `json:"displayName"`
+	Currency           string       `json:"currency"`
+	Theme              domain.Theme `json:"theme"`
+	FirstAccount       AccountInput `json:"firstAccount"`
+	ReserveTargetCents int64        `json:"reserveTargetCents"`
 }
 
 type TransactionInput struct {
@@ -572,6 +573,9 @@ func (s *Service) CompleteOnboarding(ctx context.Context, in OnboardingInput) (d
 	if in.FirstAccount.Type == domain.AccountSavings && in.FirstAccount.OpeningBalanceCents < 0 {
 		return domain.Profile{}, domain.ErrSavingsNegative
 	}
+	if in.ReserveTargetCents < 0 {
+		return domain.Profile{}, domain.ErrInvalidGoal
+	}
 	p := domain.Profile{DisplayName: strings.TrimSpace(in.DisplayName), Currency: "BRL", Theme: in.Theme, OnboardingStatus: "completed"}
 	a := accountFromInput(in.FirstAccount, newID(), s.now())
 	if err := validateAccountInput(a, in.FirstAccount, s.now()); err != nil {
@@ -584,7 +588,16 @@ func (s *Service) CompleteOnboarding(ctx context.Context, in OnboardingInput) (d
 		if err := q.InsertAccount(ctx, a, a.CreatedAt); err != nil {
 			return err
 		}
-		return s.insertOpeningInvoice(ctx, q, a, in.FirstAccount, a.CreatedAt)
+		if err := s.insertOpeningInvoice(ctx, q, a, in.FirstAccount, a.CreatedAt); err != nil {
+			return err
+		}
+		if in.ReserveTargetCents > 0 {
+			goal := domain.Goal{ID: newID(), Name: "Reserva de emergência", Kind: domain.GoalEmergencyReserve, TargetCents: in.ReserveTargetCents, CreatedAt: a.CreatedAt, UpdatedAt: a.CreatedAt}
+			if err := q.InsertGoal(ctx, goal, a.CreatedAt); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	return p, err
 }

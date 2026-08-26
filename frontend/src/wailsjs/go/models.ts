@@ -288,6 +288,7 @@ export namespace application {
 	    currency: string;
 	    theme: string;
 	    firstAccount: AccountInput;
+	    reserveTargetCents: number;
 
 	    static createFrom(source: any = {}) {
 	        return new OnboardingInput(source);
@@ -299,6 +300,7 @@ export namespace application {
 	        this.currency = source["currency"];
 	        this.theme = source["theme"];
 	        this.firstAccount = this.convertValues(source["firstAccount"], AccountInput);
+	        this.reserveTargetCents = source["reserveTargetCents"];
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

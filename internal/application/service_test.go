@@ -50,7 +50,7 @@ func TestSkipOnboarding_CreatesNoFinancialRecords(t *testing.T) {
 func TestWorkflow_RecalculatesDashboardAndPersistsTheme(t *testing.T) {
 	service, _ := testService(t)
 	ctx := context.Background()
-	p, err := service.CompleteOnboarding(ctx, OnboardingInput{DisplayName: " Ana ", Currency: "BRL", Theme: domain.ThemeGothic, FirstAccount: AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 10000, OpeningDate: "2026-08-01"}})
+	p, err := service.CompleteOnboarding(ctx, OnboardingInput{DisplayName: " Ana ", Currency: "BRL", Theme: domain.ThemeGothic, ReserveTargetCents: 30000, FirstAccount: AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 10000, OpeningDate: "2026-08-01"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,6 +58,9 @@ func TestWorkflow_RecalculatesDashboardAndPersistsTheme(t *testing.T) {
 		t.Fatalf("name=%q", p.DisplayName)
 	}
 	boot, _ := service.Bootstrap(ctx)
+	if len(boot.Planning.Goals) != 1 || boot.Planning.Goals[0].Kind != domain.GoalEmergencyReserve || boot.Planning.Goals[0].TargetCents != 30000 || len(boot.Planning.Goals[0].Allocations) != 0 {
+		t.Fatalf("onboarding goals=%+v", boot.Planning.Goals)
+	}
 	account := boot.Accounts[0]
 	for _, in := range []TransactionInput{{Kind: domain.Income, AmountCents: 5000, AccountID: account.ID, CategoryID: "salary", Description: "Salário", OccurrenceDate: "2026-08-10"}, {Kind: domain.Expense, AmountCents: 3500, AccountID: account.ID, CategoryID: "food", Description: "Mercado", OccurrenceDate: "2026-08-12"}} {
 		if _, err := service.CreateTransaction(ctx, in); err != nil {
@@ -93,6 +96,13 @@ func TestFailedCommandsLeaveStateUnchanged(t *testing.T) {
 	boot, _ := service.Bootstrap(ctx)
 	if boot.Profile != nil || len(boot.Accounts) != 0 {
 		t.Fatal("invalid onboarding changed state")
+	}
+	if _, err := service.CompleteOnboarding(ctx, OnboardingInput{DisplayName: "Ana", Currency: "BRL", Theme: domain.ThemeLight, ReserveTargetCents: -1, FirstAccount: AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningDate: "2026-08-01"}}); !errors.Is(err, domain.ErrInvalidGoal) {
+		t.Fatalf("reserve validation=%v", err)
+	}
+	boot, _ = service.Bootstrap(ctx)
+	if boot.Profile != nil || len(boot.Accounts) != 0 || len(boot.Planning.Goals) != 0 {
+		t.Fatal("reserve validation did not roll back")
 	}
 	if _, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 100, AccountID: "missing", Description: "Teste", OccurrenceDate: "2026-08-16"}); !errors.Is(err, domain.ErrUnknownAccount) {
 		t.Fatalf("error=%v", err)

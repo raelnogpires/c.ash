@@ -28,7 +28,7 @@ export interface CategoryBudgetInput { categoryId: string; limitCents: number; r
 export interface MonthlyBudgetInput { referenceMonth: string; overallLimitCents: number; categoryLimits: CategoryBudgetInput[] }
 export interface GoalInput { name: string; kind: GoalKind; targetCents: number; deadline: string }
 export interface GoalAllocationInput { accountId: string; amountCents: number }
-export interface OnboardingInput { displayName: string; currency: 'BRL'; theme: Theme; firstAccount: AccountInput }
+export interface OnboardingInput { displayName: string; currency: 'BRL'; theme: Theme; firstAccount: AccountInput; reserveTargetCents: number }
 export interface TransactionSplitInput { categoryId: string; subcategoryName: string; amountCents: number }
 export interface TransactionInput { kind: TransactionKind; amountCents: number; accountId: string; destinationAccountId: string; categoryId: string; description: string; occurrenceDate: string; installmentCount?: number; subcategoryName?: string; tags?: string[]; splits?: TransactionSplitInput[]; monthlyRecurrence?: boolean }
 export interface TransactionOccurrence { id:string; recurrenceRuleId?:string; accountId:string; accountName:string; kind:TransactionKind; categoryId?:string; categoryName?:string; amountCents:number; description:string; scheduledDate:string; status:'pending'|'confirmed'|'dismissed'; transactionId?:string; installmentNumber:number; installmentCount:number }
