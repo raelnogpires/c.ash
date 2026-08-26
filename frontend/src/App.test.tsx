@@ -72,6 +72,32 @@ test('inicia bloqueado e só carrega dados depois da senha correta',async()=>{co
 
 test('expõe backup e exportações com aviso de texto puro',async()=>{const api={...mockAPI(),SecurityStatus:vi.fn().mockResolvedValue({enabled:false,locked:false}),BackupStatus:vi.fn().mockResolvedValue({folder:'/tmp/backups',defaultFolder:'/tmp/backups',automaticDue:false,nextDueAt:'2026-09-01T00:00:00Z'}),CreateBackup:vi.fn().mockResolvedValue({cancelled:true,success:false}),ExportData:vi.fn().mockResolvedValue({cancelled:true,success:false})};render(<App api={api}/>);await userEvent.click(await screen.findByRole('button',{name:'Configurações'}));expect(await screen.findByRole('heading',{name:'Backup e portabilidade'})).toBeInTheDocument();expect(screen.getByText(/CSV e JSON são arquivos em texto puro/)).toBeInTheDocument();await userEvent.click(screen.getByRole('button',{name:'Criar backup agora'}));await waitFor(()=>expect(api.CreateBackup).toHaveBeenCalledOnce());expect(screen.queryByRole('alert')).not.toBeInTheDocument();await userEvent.click(screen.getByRole('button',{name:'Exportar CSV'}));expect(api.ExportData).toHaveBeenCalledWith('csv')})
 
+test.each([
+  [{enabled:false,locked:false},{enabled:true,locked:false},'Alterar senha'],
+  [{enabled:true,locked:false},{enabled:false,locked:false},'Ativar criptografia'],
+] as const)('atualiza a criptografia após restaurar backup',async(initial,restored,expectedAction)=>{
+  const api={...mockAPI(),SecurityStatus:vi.fn().mockResolvedValueOnce(initial).mockResolvedValueOnce(restored),BackupStatus:vi.fn().mockResolvedValue({folder:'/tmp/backups',defaultFolder:'/tmp/backups',automaticDue:false}),InspectBackup:vi.fn().mockResolvedValue({success:true,cancelled:false,backup:{path:'/tmp/restore.cashbackup',manifest:{formatVersion:1,createdAt:'2026-08-01T12:00:00Z',applicationVersion:'0.1.0',schemaVersion:6,encrypted:restored.enabled,payloadSha256:'hash',kind:'manual'}}}),RestoreBackup:vi.fn().mockResolvedValue({success:true,cancelled:false,backup:{}})}
+  render(<App api={api}/>)
+  await userEvent.click(await screen.findByRole('button',{name:'Configurações'}))
+  await userEvent.click(await screen.findByRole('button',{name:'Restaurar backup'}))
+  await userEvent.click(await screen.findByRole('button',{name:'Restaurar e substituir'}))
+  await waitFor(()=>expect(api.SecurityStatus).toHaveBeenCalledTimes(2))
+  expect(api.Bootstrap).toHaveBeenCalledTimes(2)
+  await userEvent.click(screen.getByRole('button',{name:'Configurações'}))
+  expect(await screen.findByRole('button',{name:expectedAction})).toBeInTheDocument()
+})
+
+test('mantém o estado de segurança quando a restauração falha',async()=>{
+  const api={...mockAPI(),SecurityStatus:vi.fn().mockResolvedValue({enabled:false,locked:false}),BackupStatus:vi.fn().mockResolvedValue({folder:'/tmp/backups',defaultFolder:'/tmp/backups',automaticDue:false}),InspectBackup:vi.fn().mockResolvedValue({success:true,cancelled:false,backup:{path:'/tmp/restore.cashbackup',manifest:{formatVersion:1,createdAt:'2026-08-01T12:00:00Z',applicationVersion:'0.1.0',schemaVersion:6,encrypted:false,payloadSha256:'hash',kind:'manual'}}}),RestoreBackup:vi.fn().mockRejectedValue(new Error('Backup inválido'))}
+  render(<App api={api}/>)
+  await userEvent.click(await screen.findByRole('button',{name:'Configurações'}))
+  await userEvent.click(await screen.findByRole('button',{name:'Restaurar backup'}))
+  await userEvent.click(await screen.findByRole('button',{name:'Restaurar e substituir'}))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Backup inválido')
+  expect(api.SecurityStatus).toHaveBeenCalledOnce()
+  expect(api.Bootstrap).toHaveBeenCalledOnce()
+})
+
 test('exige confirmação de que a chave de recuperação foi salva',async()=>{const api={...mockAPI(),SecurityStatus:vi.fn().mockResolvedValue({enabled:false,locked:false}),EnableEncryption:vi.fn().mockResolvedValue({status:{enabled:true,locked:false},recoveryKey:'ABCDE-FGHIJ-KLMNO'}),BackupStatus:vi.fn().mockResolvedValue({folder:'/tmp/backups',defaultFolder:'/tmp/backups',automaticDue:true})};render(<App api={api}/>);await userEvent.click(await screen.findByRole('button',{name:'Configurações'}));await userEvent.click(await screen.findByRole('button',{name:'Ativar criptografia'}));await userEvent.type(screen.getByLabelText('Nova senha'),'senha-de-teste-segura');await userEvent.type(screen.getByLabelText('Confirme a senha'),'senha-de-teste-segura');await userEvent.click(screen.getByRole('button',{name:'Criptografar banco'}));expect(await screen.findByText('ABCDE-FGHIJ-KLMNO')).toBeInTheDocument();const finish=screen.getByRole('button',{name:'Concluir'});expect(finish).toBeDisabled();await userEvent.click(screen.getByRole('checkbox',{name:'Salvei a chave em um local seguro'}));expect(finish).toBeEnabled()})
 
 test('mostra atividade recente com sinais não dependentes de cor',async()=>{const data:BootstrapData={...empty,dashboard:{...empty.dashboard,recentTransactions:[{id:'t',kind:'expense',amountCents:1290,accountId:'a',accountName:'Principal',description:'Almoço',occurrenceDate:'2026-08-16',createdAt:'x',updatedAt:'x'}]}};render(<App api={mockAPI(data)}/>);expect(await screen.findByText('Almoço')).toBeInTheDocument();expect(screen.getByText('Despesa:')).toBeInTheDocument();expect(screen.getByText(/R\$\s*12,90/)).toBeInTheDocument()})

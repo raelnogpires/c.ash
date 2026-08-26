@@ -397,7 +397,17 @@ function SettingsView({ api, theme, security, updateStatus, setTheme, onCheckUpd
     if (securityMode === 'disable') { if (!api.DisableEncryption) return; onSecurityChange(await api.DisableEncryption({ password })); setMessage('Criptografia desativada. O banco voltou a ser armazenado sem proteção.'); clearSecurityDialog() }
   }) }
   const inspect = (trigger: HTMLButtonElement) => { settingsDialogTrigger.current = trigger; return run('restore', async () => { const result = await api.InspectBackup?.(); if (result && !result.cancelled) setRestore(result.backup) }) }
-  const restoreNow = () => restore && run('restore-confirm', async () => { const result = await api.RestoreBackup?.({ path: restore.path, password, recoveryKey: archiveRecoveryKey }); if (result?.success) { setRestore(null); setPassword(''); setArchiveRecoveryKey(''); setMessage('Backup restaurado com sucesso.'); await refreshBackup(); await onRestored() } })
+  const restoreNow = () => restore && run('restore-confirm', async () => {
+    const result = await api.RestoreBackup?.({ path: restore.path, password, recoveryKey: archiveRecoveryKey })
+    if (!result?.success) return
+    setRestore(null)
+    setPassword('')
+    setArchiveRecoveryKey('')
+    setMessage('Backup restaurado com sucesso.')
+    if (api.SecurityStatus) onSecurityChange(await api.SecurityStatus())
+    await refreshBackup()
+    await onRestored()
+  })
   return <div className="page settings-page">
     {operationError && !securityMode && !restore && <p className="alert" role="alert">{operationError}</p>}{message && <p className="alert alert--success" role="status">{message}</p>}
     <section className="card settings-card"><h2>Escolha a atmosfera</h2><p>O conteúdo e a posição dos controles permanecem iguais em todos os temas.</p><fieldset className="settings-themes"><legend className="sr-only">Tema</legend>{(['light', 'dark', 'gothic'] as Theme[]).map(value => <label key={value}><input type="radio" name="settings-theme" value={value} checked={theme === value} onChange={() => void setTheme(value)}/><span className={`settings-swatch settings-swatch--${value}`} aria-hidden="true"><i/><i/></span><strong>{value === 'light' ? 'Claro' : value === 'dark' ? 'Escuro' : 'Gótico'}</strong><small>{value === 'light' ? 'Calmo e luminoso' : value === 'dark' ? 'Confortável à noite' : 'Carvão e vinho'}</small></label>)}</fieldset></section>
