@@ -65,6 +65,8 @@ jobs:
           npm run build --prefix frontend
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
           choco install nsis -y --no-progress
+          export PATH="/c/Program Files (x86)/NSIS:$PATH"
+          command -v makensis
           mkdir -p "$RUNNER_TEMP/openssl-static"
           cp /mingw64/lib/libcrypto.a "$RUNNER_TEMP/openssl-static/"
           go build -trimpath -ldflags "-s -w" -o build/bin/cash-updater.exe ./cmd/cash-updater

@@ -9,6 +9,9 @@ description: Controle financeiro pessoal local
 vendor: c.ash
 homepage: https://github.com/OWNER/REPOSITORY
 license: Proprietary
+depends:
+  - libgtk-3-0
+  - libwebkit2gtk-4.1-0
 contents:
   - src: build/bin/cash
     dst: /usr/bin/cash
@@ -22,7 +25,3 @@ contents:
     dst: /usr/share/applications/cash.desktop
   - src: build/appicon.png
     dst: /usr/share/pixmaps/cash.png
-deb:
-  depends:
-    - libgtk-3-0
-    - libwebkit2gtk-4.1-0
