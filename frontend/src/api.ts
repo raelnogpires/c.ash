@@ -1,4 +1,4 @@
-import type { Account, AccountInput, BackupDialogResult, BackupStatus, BalanceAdjustmentInput, BankStatementImportResult, BankStatementInput, BootstrapData, ChangeEncryptionPasswordInput, ConfirmFixedExpenseOccurrenceInput, CreditCardPayment, CreditCardPaymentInput, CreditCardsOverview, EncryptionInput, EncryptionResult, FixedExpense, FixedExpenseInput, FixedExpensesOverview, Goal, GoalAllocationInput, GoalInput, MonthlyBudget, MonthlyBudgetInput, OnboardingInput, OperationResult, Planning, Profile, RecoverEncryptionInput, RestoreBackupInput, SecurityStatus, Theme, Transaction, TransactionFilter, TransactionInput, TransactionOccurrence, UnlockInput, UpdateStatus } from './types'
+import type { Account, AccountInput, BackupDialogResult, BackupStatus, BalanceAdjustmentInput, BankStatementImportResult, BankStatementInput, BootstrapData, Category, CategoryInput, ChangeEncryptionPasswordInput, ConfirmFixedExpenseOccurrenceInput, CreditCardPayment, CreditCardPaymentInput, CreditCardsOverview, EncryptionInput, EncryptionResult, FixedExpense, FixedExpenseInput, FixedExpensesOverview, Goal, GoalAllocationInput, GoalInput, MonthlyBudget, MonthlyBudgetInput, OnboardingInput, OperationResult, Planning, Profile, RecoverEncryptionInput, RestoreBackupInput, SecurityStatus, Theme, Transaction, TransactionFilter, TransactionInput, TransactionOccurrence, UnlockInput, UpdateStatus } from './types'
 import * as bindings from './wailsjs/go/desktop/App'
 import { application, domain } from './wailsjs/go/models'
 
@@ -11,6 +11,10 @@ interface CashAPI {
   AdjustAccountBalance(id: string, input: BalanceAdjustmentInput): Promise<Transaction>
   Planning(month: string): Promise<Planning>
   SetMonthlyBudget(input: MonthlyBudgetInput): Promise<MonthlyBudget>
+  CreateCategory(input: CategoryInput): Promise<Category>
+  RenameCategory(id: string, input: CategoryInput): Promise<Category>
+  ArchiveCategory(id: string): Promise<void>
+  RestoreCategory(id: string): Promise<void>
   SaveGoal(id: string, input: GoalInput): Promise<Goal>
   ArchiveGoal(id: string): Promise<void>
   SetGoalAllocations(id: string, input: GoalAllocationInput[]): Promise<Goal>
@@ -68,6 +72,10 @@ export const api: CashAPI = {
   AdjustAccountBalance: async (id, input) => await bindings.AdjustAccountBalance(id, new application.BalanceAdjustmentInput(input)) as unknown as Transaction,
   Planning: async (month) => await bindings.Planning(month) as unknown as Planning,
   SetMonthlyBudget: async (input) => await bindings.SetMonthlyBudget(new application.MonthlyBudgetInput(input)) as unknown as MonthlyBudget,
+  CreateCategory: async (input) => await bindings.CreateCategory(new application.CategoryInput(input)) as unknown as Category,
+  RenameCategory: async (id, input) => await bindings.RenameCategory(id, new application.CategoryInput(input)) as unknown as Category,
+  ArchiveCategory: async (id) => await bindings.ArchiveCategory(id),
+  RestoreCategory: async (id) => await bindings.RestoreCategory(id),
   SaveGoal: async (id, input) => await bindings.SaveGoal(id, new application.GoalInput(input)) as unknown as Goal,
   ArchiveGoal: async (id) => await bindings.ArchiveGoal(id),
   SetGoalAllocations: async (id, input) => await bindings.SetGoalAllocations(id, input.map(item => new application.GoalAllocationInput(item))) as unknown as Goal,

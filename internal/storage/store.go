@@ -49,6 +49,7 @@ type Queries interface {
 	AccountTransactions(context.Context, string) ([]domain.Transaction, error)
 	Categories(context.Context) ([]domain.Category, error)
 	Category(context.Context, string) (*domain.Category, error)
+	CategoryByName(context.Context, domain.TransactionKind, string) (*domain.Category, error)
 	Subcategories(context.Context) ([]domain.Subcategory, error)
 	EnsureSubcategory(context.Context, string, string) (domain.Subcategory, error)
 	Transactions(context.Context) ([]domain.Transaction, error)
@@ -72,6 +73,9 @@ type Queries interface {
 	InsertAccount(context.Context, domain.Account, string) error
 	UpdateAccount(context.Context, domain.Account, string) error
 	DeleteAccount(context.Context, string) error
+	InsertCategory(context.Context, domain.Category) error
+	UpdateCategory(context.Context, domain.Category) error
+	SetCategoryArchivedAt(context.Context, string, string) error
 	InsertTransaction(context.Context, domain.Transaction, string) error
 	UpdateTransaction(context.Context, domain.Transaction, string) error
 	SetTransactionDeletedAt(context.Context, string, string, string) error
@@ -97,9 +101,13 @@ type Queries interface {
 	ReplaceGoalAllocations(context.Context, string, []domain.GoalAllocation, string) error
 	SaveTransactionDetails(context.Context, domain.Transaction) error
 	InsertRecurrenceRule(context.Context, string, domain.Transaction, int, string) error
+	UpdateRecurrenceRule(context.Context, string, domain.Transaction, int, string) error
+	DeletePendingRecurrenceOccurrences(context.Context, string) error
 	InsertTransactionOccurrence(context.Context, domain.TransactionOccurrence, string) error
 	TransactionOccurrences(context.Context) ([]domain.TransactionOccurrence, error)
 	TransactionOccurrence(context.Context, string) (*domain.TransactionOccurrence, error)
+	TransactionForRecurrence(context.Context, string) (*domain.Transaction, error)
+	ActiveRecurrenceRules(context.Context) ([]domain.RecurrenceRule, error)
 	SetTransactionOccurrence(context.Context, string, string, string, string) error
 	ArchiveRecurrenceRule(context.Context, string, string) error
 	SetTransactionRecurrence(context.Context, string, string) error
@@ -469,7 +477,7 @@ func (q *dbQueries) AccountTransactions(ctx context.Context, id string) ([]domai
 }
 
 func (q *dbQueries) Categories(ctx context.Context) ([]domain.Category, error) {
-	rows, err := q.q.QueryContext(ctx, `SELECT id, name, kind FROM categories ORDER BY kind DESC, rowid`)
+	rows, err := q.q.QueryContext(ctx, `SELECT id, name, kind, editable, COALESCE(archived_at,'') FROM categories ORDER BY archived_at IS NOT NULL, kind DESC, name COLLATE NOCASE`)
 	if err != nil {
 		return nil, err
 	}
@@ -477,7 +485,7 @@ func (q *dbQueries) Categories(ctx context.Context) ([]domain.Category, error) {
 	items := []domain.Category{}
 	for rows.Next() {
 		var c domain.Category
-		if err := rows.Scan(&c.ID, &c.Name, &c.Kind); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Kind, &c.Editable, &c.ArchivedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, c)
@@ -487,11 +495,49 @@ func (q *dbQueries) Categories(ctx context.Context) ([]domain.Category, error) {
 
 func (q *dbQueries) Category(ctx context.Context, id string) (*domain.Category, error) {
 	var c domain.Category
-	err := q.q.QueryRowContext(ctx, `SELECT id, name, kind FROM categories WHERE id = ?`, id).Scan(&c.ID, &c.Name, &c.Kind)
+	err := q.q.QueryRowContext(ctx, `SELECT id, name, kind, editable, COALESCE(archived_at,'') FROM categories WHERE id = ?`, id).Scan(&c.ID, &c.Name, &c.Kind, &c.Editable, &c.ArchivedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return &c, err
+}
+
+func (q *dbQueries) CategoryByName(ctx context.Context, kind domain.TransactionKind, name string) (*domain.Category, error) {
+	var c domain.Category
+	err := q.q.QueryRowContext(ctx, `SELECT id, name, kind, editable, COALESCE(archived_at,'') FROM categories WHERE kind=? AND name=? COLLATE NOCASE`, kind, strings.TrimSpace(name)).Scan(&c.ID, &c.Name, &c.Kind, &c.Editable, &c.ArchivedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &c, err
+}
+
+func (q *dbQueries) InsertCategory(ctx context.Context, category domain.Category) error {
+	_, err := q.q.ExecContext(ctx, `INSERT INTO categories(id,name,kind,editable) VALUES(?,?,?,1)`, category.ID, category.Name, category.Kind)
+	return err
+}
+
+func (q *dbQueries) UpdateCategory(ctx context.Context, category domain.Category) error {
+	result, err := q.q.ExecContext(ctx, `UPDATE categories SET name=? WHERE id=? AND editable=1`, category.Name, category.ID)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return domain.ErrUnknownCategory
+	}
+	return err
+}
+
+func (q *dbQueries) SetCategoryArchivedAt(ctx context.Context, id, archivedAt string) error {
+	result, err := q.q.ExecContext(ctx, `UPDATE categories SET archived_at=? WHERE id=? AND editable=1`, nullable(archivedAt), id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return domain.ErrUnknownCategory
+	}
+	return err
 }
 
 const transactionSelect = `SELECT t.id, t.kind, t.amount_cents, t.account_id, a.name,
@@ -550,6 +596,18 @@ func scanTransactions(rows *sql.Rows, err error) ([]domain.Transaction, error) {
 
 func (q *dbQueries) Transaction(ctx context.Context, id string) (*domain.Transaction, error) {
 	t, err := scanTransaction(q.q.QueryRowContext(ctx, transactionSelect+` WHERE t.id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	items := []domain.Transaction{t}
+	if err = q.hydrateTransactions(ctx, items, err); err != nil {
+		return nil, err
+	}
+	return &items[0], nil
+}
+
+func (q *dbQueries) TransactionForRecurrence(ctx context.Context, ruleID string) (*domain.Transaction, error) {
+	t, err := scanTransaction(q.q.QueryRowContext(ctx, transactionSelect+` WHERE t.recurrence_rule_id = ? ORDER BY t.created_at, t.id LIMIT 1`, ruleID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

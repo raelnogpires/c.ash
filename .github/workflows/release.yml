@@ -71,6 +71,7 @@ jobs:
           python -c "import json; p='cmd/cash/wails.json'; d=json.load(open(p)); d['info']={'companyName':'c.ash','productName':'[c]ash','productVersion':'${VERSION}','copyright':'c.ash'}; open(p,'w').write(json.dumps(d))"
           (cd cmd/cash && CGO_ENABLED=1 CGO_CFLAGS=-I/mingw64/include CGO_LDFLAGS="-L$RUNNER_TEMP/openssl-static $(pkg-config --static --libs libcrypto)" wails build -s -platform windows/amd64 -nsis -installscope user -webview2 embed -ldflags "-X main.version=${VERSION} -X main.commit=${SHA} -X main.repository=${REPOSITORY}")
           if objdump -p build/bin/cash.exe | grep -qi 'DLL Name:.*\(libcrypto\|libssl\)'; then exit 1; fi
+          7z l build/bin/cash-amd64-installer.exe | grep -q 'cash-updater.exe'
           mkdir -p dist
           mv build/bin/cash-amd64-installer.exe "dist/cash_${VERSION}_windows_amd64_setup.exe"
       - uses: actions/upload-artifact@v4

@@ -33,33 +33,16 @@ export namespace application {
 	    occurrenceDate: string;
 	    reason: string;
 
-	    static createFrom(source: any = {}) { return new BalanceAdjustmentInput(source); }
+	    static createFrom(source: any = {}) {
+	        return new BalanceAdjustmentInput(source);
+	    }
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.targetBalanceCents = source["targetBalanceCents"];
 	        this.occurrenceDate = source["occurrenceDate"];
 	        this.reason = source["reason"];
 	    }
-	}
-	export class GoalAllocationInput {
-	    accountId: string; amountCents: number;
-	    static createFrom(source: any = {}) { return new GoalAllocationInput(source); }
-	    constructor(source: any = {}) { if ('string' === typeof source) source=JSON.parse(source); this.accountId=source["accountId"]; this.amountCents=source["amountCents"]; }
-	}
-	export class GoalInput {
-	    name: string; kind: string; targetCents: number; deadline: string;
-	    static createFrom(source: any = {}) { return new GoalInput(source); }
-	    constructor(source: any = {}) { if ('string' === typeof source) source=JSON.parse(source); this.name=source["name"];this.kind=source["kind"];this.targetCents=source["targetCents"];this.deadline=source["deadline"]; }
-	}
-	export class CategoryBudgetInput {
-	    categoryId: string; limitCents: number; rollover: boolean;
-	    static createFrom(source: any = {}) { return new CategoryBudgetInput(source); }
-	    constructor(source: any = {}) { if ('string' === typeof source) source=JSON.parse(source);this.categoryId=source["categoryId"];this.limitCents=source["limitCents"];this.rollover=source["rollover"]; }
-	}
-	export class MonthlyBudgetInput {
-	    referenceMonth: string; overallLimitCents: number; categoryLimits: CategoryBudgetInput[];
-	    static createFrom(source: any = {}) { return new MonthlyBudgetInput(source); }
-	    constructor(source: any = {}) { if ('string' === typeof source) source=JSON.parse(source);this.referenceMonth=source["referenceMonth"];this.overallLimitCents=source["overallLimitCents"];this.categoryLimits=(source["categoryLimits"]||[]).map((x:any)=>new CategoryBudgetInput(x)); }
 	}
 	export class BankStatementImportResult {
 	    bank: string;
@@ -138,6 +121,36 @@ export namespace application {
 		    }
 		    return a;
 		}
+	}
+	export class CategoryBudgetInput {
+	    categoryId: string;
+	    limitCents: number;
+	    rollover: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new CategoryBudgetInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.categoryId = source["categoryId"];
+	        this.limitCents = source["limitCents"];
+	        this.rollover = source["rollover"];
+	    }
+	}
+	export class CategoryInput {
+	    name: string;
+	    kind: string;
+
+	    static createFrom(source: any = {}) {
+	        return new CategoryInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	    }
 	}
 	export class ChangeEncryptionPasswordInput {
 	    currentPassword: string;
@@ -283,6 +296,72 @@ export namespace application {
 		    return a;
 		}
 	}
+	export class GoalAllocationInput {
+	    accountId: string;
+	    amountCents: number;
+
+	    static createFrom(source: any = {}) {
+	        return new GoalAllocationInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.accountId = source["accountId"];
+	        this.amountCents = source["amountCents"];
+	    }
+	}
+	export class GoalInput {
+	    name: string;
+	    kind: string;
+	    targetCents: number;
+	    deadline: string;
+
+	    static createFrom(source: any = {}) {
+	        return new GoalInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.targetCents = source["targetCents"];
+	        this.deadline = source["deadline"];
+	    }
+	}
+	export class MonthlyBudgetInput {
+	    referenceMonth: string;
+	    overallLimitCents: number;
+	    categoryLimits: CategoryBudgetInput[];
+
+	    static createFrom(source: any = {}) {
+	        return new MonthlyBudgetInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.referenceMonth = source["referenceMonth"];
+	        this.overallLimitCents = source["overallLimitCents"];
+	        this.categoryLimits = this.convertValues(source["categoryLimits"], CategoryBudgetInput);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class OnboardingInput {
 	    displayName: string;
 	    currency: string;
@@ -353,6 +432,22 @@ export namespace application {
 	        this.recoveryKey = source["recoveryKey"];
 	    }
 	}
+	export class TransactionSplitInput {
+	    categoryId: string;
+	    subcategoryName: string;
+	    amountCents: number;
+
+	    static createFrom(source: any = {}) {
+	        return new TransactionSplitInput(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.categoryId = source["categoryId"];
+	        this.subcategoryName = source["subcategoryName"];
+	        this.amountCents = source["amountCents"];
+	    }
+	}
 	export class TransactionInput {
 	    kind: string;
 	    amountCents: number;
@@ -382,12 +477,30 @@ export namespace application {
 	        this.occurrenceDate = source["occurrenceDate"];
 	        this.installmentCount = source["installmentCount"];
 	        this.subcategoryName = source["subcategoryName"];
-	        this.tags = source["tags"] || [];
-	        this.splits = (source["splits"]||[]).map((x:any)=>new TransactionSplitInput(x));
+	        this.tags = source["tags"];
+	        this.splits = this.convertValues(source["splits"], TransactionSplitInput);
 	        this.monthlyRecurrence = source["monthlyRecurrence"];
 	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
-	export class TransactionSplitInput { categoryId:string;subcategoryName:string;amountCents:number; constructor(source:any={}){this.categoryId=source["categoryId"];this.subcategoryName=source["subcategoryName"];this.amountCents=source["amountCents"];} }
+
 	export class UnlockInput {
 	    password: string;
 	    recoveryKey: string;
@@ -461,7 +574,6 @@ export namespace desktop {
 }
 
 export namespace domain {
-	export class TransactionFilter { text:string;startDate:string;endDate:string;accountId:string;categoryId:string;subcategoryId:string;tag:string;kind:string;status:string;minimumAmountCents:number;maximumAmountCents:number;recurrence:string;constructor(source:any={}){Object.assign(this,source);this.text=source.text??'';this.startDate=source.startDate??'';this.endDate=source.endDate??'';this.accountId=source.accountId??'';this.categoryId=source.categoryId??'';this.subcategoryId=source.subcategoryId??'';this.tag=source.tag??'';this.kind=source.kind??'';this.status=source.status??'';this.minimumAmountCents=source.minimumAmountCents??0;this.maximumAmountCents=source.maximumAmountCents??0;this.recurrence=source.recurrence??'';} }
 
 	export class Account {
 	    id: string;
@@ -531,6 +643,8 @@ export namespace domain {
 	    id: string;
 	    name: string;
 	    kind: string;
+	    editable: boolean;
+	    archivedAt?: string;
 
 	    static createFrom(source: any = {}) {
 	        return new Category(source);
@@ -541,6 +655,36 @@ export namespace domain {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.kind = source["kind"];
+	        this.editable = source["editable"];
+	        this.archivedAt = source["archivedAt"];
+	    }
+	}
+	export class CategoryBudgetLimit {
+	    id: string;
+	    categoryId: string;
+	    categoryName: string;
+	    limitCents: number;
+	    rollover: boolean;
+	    rolloverCents: number;
+	    spentCents: number;
+	    availableCents: number;
+	    exceeded: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new CategoryBudgetLimit(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.categoryId = source["categoryId"];
+	        this.categoryName = source["categoryName"];
+	        this.limitCents = source["limitCents"];
+	        this.rollover = source["rollover"];
+	        this.rolloverCents = source["rolloverCents"];
+	        this.spentCents = source["spentCents"];
+	        this.availableCents = source["availableCents"];
+	        this.exceeded = source["exceeded"];
 	    }
 	}
 	export class CreditCardInstallment {
@@ -686,6 +830,42 @@ export namespace domain {
 		    return a;
 		}
 	}
+	export class TransactionSplit {
+	    id: string;
+	    categoryId: string;
+	    categoryName: string;
+	    subcategoryId?: string;
+	    subcategoryName?: string;
+	    amountCents: number;
+
+	    static createFrom(source: any = {}) {
+	        return new TransactionSplit(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.categoryId = source["categoryId"];
+	        this.categoryName = source["categoryName"];
+	        this.subcategoryId = source["subcategoryId"];
+	        this.subcategoryName = source["subcategoryName"];
+	        this.amountCents = source["amountCents"];
+	    }
+	}
+	export class Tag {
+	    id: string;
+	    name: string;
+
+	    static createFrom(source: any = {}) {
+	        return new Tag(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	    }
+	}
 	export class Transaction {
 	    id: string;
 	    kind: string;
@@ -708,6 +888,13 @@ export namespace domain {
 	    invoicePaymentId?: string;
 	    origin: string;
 	    adjustmentReason?: string;
+	    subcategoryId?: string;
+	    subcategoryName?: string;
+	    tags: Tag[];
+	    splits: TransactionSplit[];
+	    recurrenceRuleId?: string;
+	    status: string;
+	    pending: boolean;
 
 	    static createFrom(source: any = {}) {
 	        return new Transaction(source);
@@ -736,14 +923,33 @@ export namespace domain {
 	        this.invoicePaymentId = source["invoicePaymentId"];
 	        this.origin = source["origin"];
 	        this.adjustmentReason = source["adjustmentReason"];
+	        this.subcategoryId = source["subcategoryId"];
+	        this.subcategoryName = source["subcategoryName"];
+	        this.tags = this.convertValues(source["tags"], Tag);
+	        this.splits = this.convertValues(source["splits"], TransactionSplit);
+	        this.recurrenceRuleId = source["recurrenceRuleId"];
+	        this.status = source["status"];
+	        this.pending = source["pending"];
 	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
-	export class TransactionOccurrence { id:string;recurrenceRuleId?:string;accountId:string;accountName:string;kind:string;categoryId?:string;categoryName?:string;amountCents:number;description:string;scheduledDate:string;status:string;transactionId?:string;installmentNumber:number;installmentCount:number;constructor(source:any={}){Object.assign(this,source);this.id=source.id;this.accountId=source.accountId;this.accountName=source.accountName;this.kind=source.kind;this.amountCents=source.amountCents;this.description=source.description;this.scheduledDate=source.scheduledDate;this.status=source.status;this.installmentNumber=source.installmentNumber;this.installmentCount=source.installmentCount;} }
-	export class GoalAllocation { goalId:string;accountId:string;accountName:string;amountCents:number; constructor(source:any={}){this.goalId=source["goalId"];this.accountId=source["accountId"];this.accountName=source["accountName"];this.amountCents=source["amountCents"];} }
-	export class Goal { id:string;name:string;kind:string;targetCents:number;deadline?:string;archivedAt?:string;createdAt:string;updatedAt:string;allocatedCents:number;progressPercent:number;allocations:GoalAllocation[]; constructor(source:any={}){this.id=source["id"];this.name=source["name"];this.kind=source["kind"];this.targetCents=source["targetCents"];this.deadline=source["deadline"];this.archivedAt=source["archivedAt"];this.createdAt=source["createdAt"];this.updatedAt=source["updatedAt"];this.allocatedCents=source["allocatedCents"];this.progressPercent=source["progressPercent"];this.allocations=(source["allocations"]||[]).map((x:any)=>new GoalAllocation(x));} }
-	export class CategoryBudgetLimit { id!:string;categoryId!:string;categoryName!:string;limitCents!:number;rollover!:boolean;rolloverCents!:number;spentCents!:number;availableCents!:number;exceeded!:boolean; constructor(source:any={}){Object.assign(this,source);} }
-	export class MonthlyBudget { referenceMonth:string;overallLimitCents:number;spentCents:number;remainingCents:number;progressPercent:number;categoryLimits:CategoryBudgetLimit[]; constructor(source:any={}){this.referenceMonth=source["referenceMonth"];this.overallLimitCents=source["overallLimitCents"];this.spentCents=source["spentCents"];this.remainingCents=source["remainingCents"];this.progressPercent=source["progressPercent"];this.categoryLimits=(source["categoryLimits"]||[]).map((x:any)=>new CategoryBudgetLimit(x));} }
-	export class Planning { budget?:MonthlyBudget;goals:Goal[]; constructor(source:any={}){this.budget=source["budget"]?new MonthlyBudget(source["budget"]):undefined;this.goals=(source["goals"]||[]).map((x:any)=>new Goal(x));} }
 	export class Dashboard {
 	    availableBalanceCents: number;
 	    totalBalanceCents: number;
@@ -878,6 +1084,147 @@ export namespace domain {
 	        this.updatedAt = source["updatedAt"];
 	    }
 	}
+	export class GoalAllocation {
+	    goalId: string;
+	    accountId: string;
+	    accountName: string;
+	    amountCents: number;
+
+	    static createFrom(source: any = {}) {
+	        return new GoalAllocation(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.goalId = source["goalId"];
+	        this.accountId = source["accountId"];
+	        this.accountName = source["accountName"];
+	        this.amountCents = source["amountCents"];
+	    }
+	}
+	export class Goal {
+	    id: string;
+	    name: string;
+	    kind: string;
+	    targetCents: number;
+	    deadline?: string;
+	    archivedAt?: string;
+	    createdAt: string;
+	    updatedAt: string;
+	    allocatedCents: number;
+	    progressPercent: number;
+	    allocations: GoalAllocation[];
+
+	    static createFrom(source: any = {}) {
+	        return new Goal(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.targetCents = source["targetCents"];
+	        this.deadline = source["deadline"];
+	        this.archivedAt = source["archivedAt"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	        this.allocatedCents = source["allocatedCents"];
+	        this.progressPercent = source["progressPercent"];
+	        this.allocations = this.convertValues(source["allocations"], GoalAllocation);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+	export class MonthlyBudget {
+	    referenceMonth: string;
+	    overallLimitCents: number;
+	    spentCents: number;
+	    remainingCents: number;
+	    progressPercent: number;
+	    categoryLimits: CategoryBudgetLimit[];
+
+	    static createFrom(source: any = {}) {
+	        return new MonthlyBudget(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.referenceMonth = source["referenceMonth"];
+	        this.overallLimitCents = source["overallLimitCents"];
+	        this.spentCents = source["spentCents"];
+	        this.remainingCents = source["remainingCents"];
+	        this.progressPercent = source["progressPercent"];
+	        this.categoryLimits = this.convertValues(source["categoryLimits"], CategoryBudgetLimit);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Planning {
+	    budget?: MonthlyBudget;
+	    goals: Goal[];
+
+	    static createFrom(source: any = {}) {
+	        return new Planning(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.budget = this.convertValues(source["budget"], MonthlyBudget);
+	        this.goals = this.convertValues(source["goals"], Goal);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Profile {
 	    displayName: string;
 	    currency: string;
@@ -897,6 +1244,108 @@ export namespace domain {
 	        this.onboardingStatus = source["onboardingStatus"];
 	        this.balancesHidden = source["balancesHidden"];
 	    }
+	}
+
+
+	export class TransactionFilter {
+	    text: string;
+	    startDate: string;
+	    endDate: string;
+	    accountId: string;
+	    categoryId: string;
+	    subcategoryId: string;
+	    tag: string;
+	    kind: string;
+	    status: string;
+	    minimumAmountCents: number;
+	    maximumAmountCents: number;
+	    recurrence: string;
+
+	    static createFrom(source: any = {}) {
+	        return new TransactionFilter(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.text = source["text"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.accountId = source["accountId"];
+	        this.categoryId = source["categoryId"];
+	        this.subcategoryId = source["subcategoryId"];
+	        this.tag = source["tag"];
+	        this.kind = source["kind"];
+	        this.status = source["status"];
+	        this.minimumAmountCents = source["minimumAmountCents"];
+	        this.maximumAmountCents = source["maximumAmountCents"];
+	        this.recurrence = source["recurrence"];
+	    }
+	}
+	export class TransactionOccurrence {
+	    id: string;
+	    recurrenceRuleId?: string;
+	    accountId: string;
+	    accountName: string;
+	    kind: string;
+	    categoryId?: string;
+	    categoryName?: string;
+	    subcategoryId?: string;
+	    amountCents: number;
+	    description: string;
+	    scheduledDate: string;
+	    status: string;
+	    transactionId?: string;
+	    installmentNumber: number;
+	    installmentCount: number;
+	    tags: Tag[];
+	    splits: TransactionSplit[];
+	    createdAt: string;
+	    updatedAt: string;
+
+	    static createFrom(source: any = {}) {
+	        return new TransactionOccurrence(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.recurrenceRuleId = source["recurrenceRuleId"];
+	        this.accountId = source["accountId"];
+	        this.accountName = source["accountName"];
+	        this.kind = source["kind"];
+	        this.categoryId = source["categoryId"];
+	        this.categoryName = source["categoryName"];
+	        this.subcategoryId = source["subcategoryId"];
+	        this.amountCents = source["amountCents"];
+	        this.description = source["description"];
+	        this.scheduledDate = source["scheduledDate"];
+	        this.status = source["status"];
+	        this.transactionId = source["transactionId"];
+	        this.installmentNumber = source["installmentNumber"];
+	        this.installmentCount = source["installmentCount"];
+	        this.tags = this.convertValues(source["tags"], Tag);
+	        this.splits = this.convertValues(source["splits"], TransactionSplit);
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

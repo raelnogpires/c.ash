@@ -248,14 +248,38 @@ func (s *Store) RecoverPassword(ctx context.Context, recoveryKey, newPassword, c
 		installedKey := append([]byte(nil), key...)
 		db, _, openErr := openSQLite(s.path, installedKey)
 		if openErr == nil {
-			s.db = db
-			s.key = installedKey
-		} else {
+			openErr = integrityCheck(ctx, db)
+		}
+		credentialErr := openErr != nil
+		if openErr == nil {
+			s.db, s.key = db, installedKey
+			pending, migrationErr := hasPendingMigrations(ctx, db)
+			if migrationErr == nil && pending {
+				_, migrationErr = s.createBackupLocked(ctx, BackupKindPreMigration, s.version)
+				if migrationErr != nil {
+					migrationErr = fmt.Errorf("create pre-migration backup: %w", migrationErr)
+				}
+			}
+			if migrationErr == nil {
+				migrationErr = ApplyMigrations(ctx, db, migrationFiles)
+			}
+			openErr = migrationErr
+		}
+		if openErr != nil {
+			if db != nil {
+				_ = db.Close()
+			}
+			s.db = nil
+			zero(s.key)
+			s.key = nil
 			zero(installedKey)
 		}
 		s.opMu.Unlock()
 		if openErr != nil {
-			return ErrInvalidCredential
+			if credentialErr {
+				return ErrInvalidCredential
+			}
+			return openErr
 		}
 	}
 	if _, err := s.CreateBackup(ctx, BackupKindPreSecurity, version); err != nil {

@@ -498,6 +498,176 @@ func TestTransactionCapabilities_SplitsTagsInstallmentsAndRecurrence(t *testing.
 	}
 }
 
+func TestRecurringOccurrences_PreserveDetailsAndExtendRollingWindow(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	if _, err := service.CompleteOnboarding(ctx, OnboardingInput{DisplayName: "Ana", Currency: "BRL", Theme: domain.ThemeLight, FirstAccount: AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 100000, OpeningDate: "2026-08-01"}}); err != nil {
+		t.Fatal(err)
+	}
+	account := mustBootstrap(t, service).Accounts[0]
+	recurring, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 1000, AccountID: account.ID, Description: "Compras mensais", OccurrenceDate: "2026-08-16", Tags: []string{"Casa"}, Splits: []TransactionSplitInput{{CategoryID: "food", AmountCents: 600}, {CategoryID: "bills", AmountCents: 400}}, MonthlyRecurrence: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	occurrences, err := service.TransactionOccurrences(ctx)
+	if err != nil || len(occurrences) != 12 {
+		t.Fatalf("occurrences=%d err=%v", len(occurrences), err)
+	}
+	service.now = func() time.Time { return time.Date(2026, 9, 16, 12, 0, 0, 0, time.Local) }
+	confirmed, err := service.ConfirmTransactionOccurrence(ctx, occurrences[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(confirmed.Tags) != 1 || confirmed.Tags[0].Name != "Casa" || len(confirmed.Splits) != 2 || confirmed.Splits[0].AmountCents+confirmed.Splits[1].AmountCents != 1000 {
+		t.Fatalf("confirmed details=%+v/%+v", confirmed.Tags, confirmed.Splits)
+	}
+	if _, err := service.UpdateTransaction(ctx, recurring.ID, TransactionInput{Kind: domain.Expense, AmountCents: 1000, AccountID: account.ID, Description: "Compras atualizadas", OccurrenceDate: "2026-08-16", Tags: []string{"Casa", "Planejada"}, Splits: []TransactionSplitInput{{CategoryID: "food", AmountCents: 600}, {CategoryID: "bills", AmountCents: 400}}, MonthlyRecurrence: true}); err != nil {
+		t.Fatal(err)
+	}
+	service.now = func() time.Time { return time.Date(2027, 10, 16, 12, 0, 0, 0, time.Local) }
+	occurrences, err = service.TransactionOccurrences(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	latest := ""
+	for _, occurrence := range occurrences {
+		if occurrence.ScheduledDate > latest {
+			latest = occurrence.ScheduledDate
+		}
+	}
+	if latest != "2028-10-16" {
+		t.Fatalf("latest recurring occurrence=%s", latest)
+	}
+	for _, occurrence := range occurrences {
+		if occurrence.Status == "pending" && occurrence.RecurrenceRuleID == recurring.RecurrenceRuleID && (occurrence.Description != "Compras atualizadas" || len(occurrence.Tags) != 2) {
+			t.Fatalf("updated recurrence was not propagated: %+v", occurrence)
+		}
+	}
+	if _, err := service.UpdateTransaction(ctx, recurring.ID, TransactionInput{Kind: domain.Expense, AmountCents: 1000, AccountID: account.ID, Description: "Compras atualizadas", OccurrenceDate: "2026-08-16", Splits: []TransactionSplitInput{{CategoryID: "food", AmountCents: 600}, {CategoryID: "bills", AmountCents: 400}}}); err != nil {
+		t.Fatal(err)
+	}
+	occurrences, err = service.TransactionOccurrences(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, occurrence := range occurrences {
+		if occurrence.Status == "pending" && occurrence.RecurrenceRuleID == recurring.RecurrenceRuleID {
+			t.Fatalf("pending occurrence survived recurrence cancellation: %+v", occurrence)
+		}
+	}
+}
+
+func TestRecurringOccurrences_KeepConfiguredDayAfterShortMonth(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	service.now = func() time.Time { return time.Date(2026, 1, 31, 12, 0, 0, 0, time.Local) }
+	if _, err := service.CompleteOnboarding(ctx, OnboardingInput{DisplayName: "Ana", Currency: "BRL", Theme: domain.ThemeLight, FirstAccount: AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningDate: "2026-01-01"}}); err != nil {
+		t.Fatal(err)
+	}
+	account := mustBootstrap(t, service).Accounts[0]
+	if _, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Income, AmountCents: 1000, AccountID: account.ID, CategoryID: "salary", Description: "Mensal", OccurrenceDate: "2026-01-31", MonthlyRecurrence: true}); err != nil {
+		t.Fatal(err)
+	}
+	occurrences, err := service.TransactionOccurrences(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if occurrences[0].ScheduledDate != "2026-02-28" || occurrences[1].ScheduledDate != "2026-03-31" {
+		t.Fatalf("month-end occurrences=%+v", occurrences[:2])
+	}
+	service.now = func() time.Time { return time.Date(2027, 4, 30, 12, 0, 0, 0, time.Local) }
+	occurrences, err = service.TransactionOccurrences(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	latest := occurrences[len(occurrences)-1].ScheduledDate
+	if latest != "2028-04-30" {
+		t.Fatalf("latest month-end occurrence=%s", latest)
+	}
+}
+
+func TestPlanning_RolloverCarriesAccumulatedBalance(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	if _, err := service.CompleteOnboarding(ctx, OnboardingInput{DisplayName: "Ana", Currency: "BRL", Theme: domain.ThemeLight, FirstAccount: AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 100000, OpeningDate: "2026-06-01"}}); err != nil {
+		t.Fatal(err)
+	}
+	account := mustBootstrap(t, service).Accounts[0]
+	for _, month := range []string{"2026-06", "2026-07", "2026-08"} {
+		if _, err := service.SetMonthlyBudget(ctx, MonthlyBudgetInput{ReferenceMonth: month, OverallLimitCents: 1000, CategoryLimits: []CategoryBudgetInput{{CategoryID: "food", LimitCents: 10000, Rollover: true}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 15000, AccountID: account.ID, CategoryID: "food", Description: "Mercado", OccurrenceDate: "2026-07-10"}); err != nil {
+		t.Fatal(err)
+	}
+	planning, err := service.Planning(ctx, "2026-08")
+	if err != nil || planning.Budget == nil || planning.Budget.CategoryLimits[0].RolloverCents != 5000 {
+		t.Fatalf("planning=%+v err=%v", planning, err)
+	}
+}
+
+func TestLedgerMutations_RejectGoalOverallocation(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	if _, err := service.CompleteOnboarding(ctx, OnboardingInput{DisplayName: "Ana", Currency: "BRL", Theme: domain.ThemeLight, FirstAccount: AccountInput{Name: "Principal", Type: domain.AccountChecking, OpeningBalanceCents: 1000, OpeningDate: "2026-08-01"}}); err != nil {
+		t.Fatal(err)
+	}
+	boot := mustBootstrap(t, service)
+	goal, err := service.SaveGoal(ctx, "", GoalInput{Name: "Reserva", Kind: domain.GoalSavings, TargetCents: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.SetGoalAllocations(ctx, goal.ID, []GoalAllocationInput{{AccountID: boot.Accounts[0].ID, AmountCents: 900}}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.CreateTransaction(ctx, TransactionInput{Kind: domain.Expense, AmountCents: 200, AccountID: boot.Accounts[0].ID, CategoryID: "food", Description: "Mercado", OccurrenceDate: "2026-08-10"})
+	if !errors.Is(err, domain.ErrAllocationLimit) {
+		t.Fatalf("error=%v", err)
+	}
+	if transactions, _ := service.ListTransactions(ctx); len(transactions) != 0 {
+		t.Fatalf("invalid expense persisted: %+v", transactions)
+	}
+}
+
+func TestCategoryWorkflow_CreateRenameArchiveAndRestore(t *testing.T) {
+	service, _ := testService(t)
+	ctx := context.Background()
+	if _, err := service.SkipOnboarding(ctx); err != nil {
+		t.Fatal(err)
+	}
+	category, err := service.CreateCategory(ctx, CategoryInput{Name: "Colecionáveis", Kind: domain.Expense})
+	if err != nil || !category.Editable {
+		t.Fatalf("category=%+v err=%v", category, err)
+	}
+	if _, err := service.CreateCategory(ctx, CategoryInput{Name: "colecionáveis", Kind: domain.Expense}); !errors.Is(err, domain.ErrDuplicateCategory) {
+		t.Fatalf("duplicate error=%v", err)
+	}
+	category, err = service.RenameCategory(ctx, category.ID, CategoryInput{Name: "Animais"})
+	if err != nil || category.Name != "Animais" {
+		t.Fatalf("renamed=%+v err=%v", category, err)
+	}
+	if err := service.ArchiveCategory(ctx, category.ID); err != nil {
+		t.Fatal(err)
+	}
+	boot := mustBootstrap(t, service)
+	if boot.Categories[len(boot.Categories)-1].ArchivedAt == "" {
+		t.Fatalf("archived category missing: %+v", boot.Categories)
+	}
+	if err := service.RestoreCategory(ctx, category.ID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustBootstrap(t *testing.T, service *Service) Bootstrap {
+	t.Helper()
+	boot, err := service.Bootstrap(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return boot
+}
+
 func TestSearchTransactions_CombinesFiltersAcrossLedgerStatuses(t *testing.T) {
 	service, _ := testService(t)
 	ctx := context.Background()

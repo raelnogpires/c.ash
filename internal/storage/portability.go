@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"c.ash/internal/domain"
 )
 
 const (
@@ -618,7 +620,25 @@ func exportCSV(ctx context.Context, tx *sql.Tx) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	items := []domain.Transaction{}
+	for rows.Next() {
+		transaction, scanErr := scanTransaction(rows)
+		if scanErr != nil {
+			_ = rows.Close()
+			return nil, scanErr
+		}
+		items = append(items, transaction)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := (&dbQueries{q: tx}).hydrateTransactions(ctx, items, nil); err != nil {
+		return nil, err
+	}
 	var output strings.Builder
 	output.WriteRune('\ufeff')
 	writer := csv.NewWriter(&output)
@@ -627,11 +647,7 @@ func exportCSV(ctx context.Context, tx *sql.Tx) ([]byte, error) {
 	if err := writer.Write(header); err != nil {
 		return nil, err
 	}
-	for rows.Next() {
-		transaction, scanErr := scanTransaction(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
+	for _, transaction := range items {
 		value := strconv.FormatInt(transaction.AmountCents/100, 10) + "," + fmt.Sprintf("%02d", transaction.AmountCents%100)
 		tags, _ := json.Marshal(transaction.Tags)
 		splits, _ := json.Marshal(transaction.Splits)
@@ -639,9 +655,6 @@ func exportCSV(ctx context.Context, tx *sql.Tx) ([]byte, error) {
 		if err := writer.Write(record); err != nil {
 			return nil, err
 		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 	writer.Flush()
 	return []byte(output.String()), writer.Error()

@@ -47,6 +47,8 @@ var (
 	ErrAccountInUse            = errors.New("account is in use")
 	ErrUnknownCategory         = errors.New("unknown category")
 	ErrCategoryKind            = errors.New("category kind does not match transaction")
+	ErrDuplicateCategory       = errors.New("category name already exists")
+	ErrCategoryArchived        = errors.New("category is archived")
 	ErrSameTransferAccount     = errors.New("transfer accounts must be distinct")
 	ErrTransferCategory        = errors.New("transfer cannot have category")
 	ErrSavingsNegative         = errors.New("savings account cannot be negative")
@@ -114,9 +116,11 @@ type Account struct {
 }
 
 type Category struct {
-	ID   string          `json:"id"`
-	Name string          `json:"name"`
-	Kind TransactionKind `json:"kind"`
+	ID         string          `json:"id"`
+	Name       string          `json:"name"`
+	Kind       TransactionKind `json:"kind"`
+	Editable   bool            `json:"editable"`
+	ArchivedAt string          `json:"archivedAt,omitempty"`
 }
 
 type Subcategory struct {
@@ -186,23 +190,30 @@ type TransactionFilter struct {
 }
 
 type TransactionOccurrence struct {
-	ID                string          `json:"id"`
-	RecurrenceRuleID  string          `json:"recurrenceRuleId,omitempty"`
-	AccountID         string          `json:"accountId"`
-	AccountName       string          `json:"accountName"`
-	Kind              TransactionKind `json:"kind"`
-	CategoryID        string          `json:"categoryId,omitempty"`
-	CategoryName      string          `json:"categoryName,omitempty"`
-	SubcategoryID     string          `json:"subcategoryId,omitempty"`
-	AmountCents       int64           `json:"amountCents"`
-	Description       string          `json:"description"`
-	ScheduledDate     string          `json:"scheduledDate"`
-	Status            string          `json:"status"`
-	TransactionID     string          `json:"transactionId,omitempty"`
-	InstallmentNumber int             `json:"installmentNumber"`
-	InstallmentCount  int             `json:"installmentCount"`
-	CreatedAt         string          `json:"createdAt"`
-	UpdatedAt         string          `json:"updatedAt"`
+	ID                string             `json:"id"`
+	RecurrenceRuleID  string             `json:"recurrenceRuleId,omitempty"`
+	AccountID         string             `json:"accountId"`
+	AccountName       string             `json:"accountName"`
+	Kind              TransactionKind    `json:"kind"`
+	CategoryID        string             `json:"categoryId,omitempty"`
+	CategoryName      string             `json:"categoryName,omitempty"`
+	SubcategoryID     string             `json:"subcategoryId,omitempty"`
+	AmountCents       int64              `json:"amountCents"`
+	Description       string             `json:"description"`
+	ScheduledDate     string             `json:"scheduledDate"`
+	Status            string             `json:"status"`
+	TransactionID     string             `json:"transactionId,omitempty"`
+	InstallmentNumber int                `json:"installmentNumber"`
+	InstallmentCount  int                `json:"installmentCount"`
+	Tags              []Tag              `json:"tags"`
+	Splits            []TransactionSplit `json:"splits"`
+	CreatedAt         string             `json:"createdAt"`
+	UpdatedAt         string             `json:"updatedAt"`
+}
+
+type RecurrenceRule struct {
+	ID         string `json:"id"`
+	DayOfMonth int    `json:"dayOfMonth"`
 }
 
 type CreditCardInvoiceStatus string
@@ -447,6 +458,9 @@ func ValidateFixedExpense(description string, amountCents int64, dueDay int, cat
 	if category == nil {
 		return ErrUnknownCategory
 	}
+	if category.ArchivedAt != "" {
+		return ErrCategoryArchived
+	}
 	if category.Kind != Expense {
 		return ErrCategoryKind
 	}
@@ -652,12 +666,14 @@ func CalculateDashboard(accounts []Account, transactions []Transaction, now time
 	for id, balance := range balances {
 		if accountsByID[id].Type != AccountCreditCard {
 			result.AvailableBalanceCents += balance
+			if balance < 0 {
+				result.HasNegativeBalance = true
+			}
 		} else if balance < 0 {
 			result.CreditCardDebtCents -= balance
 		}
 		result.TotalBalanceCents += balance
 	}
-	result.HasNegativeBalance = result.TotalBalanceCents < 0
 	// Keep the JSON contract stable for the frontend: an empty list must be
 	// encoded as [] rather than null.
 	sorted := append([]Transaction{}, transactions...)

@@ -45,6 +45,14 @@ func TestCalculateDashboard_RecentIsLimitedToFive(t *testing.T) {
 	}
 }
 
+func TestCalculateDashboard_WarnsWhenAnyCashAccountIsNegative(t *testing.T) {
+	accounts := []Account{{ID: "negative", Type: AccountChecking, OpeningBalanceCents: -100}, {ID: "positive", Type: AccountChecking, OpeningBalanceCents: 1000}}
+	got := CalculateDashboard(accounts, nil, fixedTime())
+	if got.TotalBalanceCents != 900 || !got.HasNegativeBalance {
+		t.Fatalf("dashboard=%+v", got)
+	}
+}
+
 func TestCalculateDashboard_EmptyRecentTransactionsEncodeAsArray(t *testing.T) {
 	dashboard := CalculateDashboard(nil, nil, fixedTime())
 	if dashboard.RecentTransactions == nil {

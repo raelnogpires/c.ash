@@ -6,7 +6,8 @@ export type UpdateState = 'disabled' | 'idle' | 'checking' | 'upToDate' | 'avail
 
 export interface Profile { displayName: string; currency: 'BRL'; theme: Theme | ''; onboardingStatus: 'completed' | 'skipped'; balancesHidden?: boolean }
 export interface Account { id: string; name: string; type: AccountType; openingBalanceCents: number; openingDate: string; createdAt: string; currentBalanceCents: number; creditLimitCents?: number; closingDay?: number; dueDay?: number; hasLedgerActivity?: boolean }
-export interface Category { id: string; name: string; kind: TransactionKind }
+export interface Category { id: string; name: string; kind: TransactionKind; editable?: boolean; archivedAt?: string }
+export interface CategoryInput { name: string; kind: Exclude<TransactionKind, 'transfer'> }
 export type TransactionOrigin = 'manual' | 'import' | 'fixed_expense' | 'card_payment' | 'adjustment'
 export interface Tag { id: string; name: string }
 export interface TransactionSplit { id: string; categoryId: string; categoryName: string; subcategoryId?: string; subcategoryName?: string; amountCents: number }
@@ -31,7 +32,7 @@ export interface GoalAllocationInput { accountId: string; amountCents: number }
 export interface OnboardingInput { displayName: string; currency: 'BRL'; theme: Theme; firstAccount: AccountInput; reserveTargetCents: number }
 export interface TransactionSplitInput { categoryId: string; subcategoryName: string; amountCents: number }
 export interface TransactionInput { kind: TransactionKind; amountCents: number; accountId: string; destinationAccountId: string; categoryId: string; description: string; occurrenceDate: string; installmentCount?: number; subcategoryName?: string; tags?: string[]; splits?: TransactionSplitInput[]; monthlyRecurrence?: boolean }
-export interface TransactionOccurrence { id:string; recurrenceRuleId?:string; accountId:string; accountName:string; kind:TransactionKind; categoryId?:string; categoryName?:string; amountCents:number; description:string; scheduledDate:string; status:'pending'|'confirmed'|'dismissed'; transactionId?:string; installmentNumber:number; installmentCount:number }
+export interface TransactionOccurrence { id:string; recurrenceRuleId?:string; accountId:string; accountName:string; kind:TransactionKind; categoryId?:string; categoryName?:string; amountCents:number; description:string; scheduledDate:string; status:'pending'|'confirmed'|'dismissed'; transactionId?:string; installmentNumber:number; installmentCount:number; tags:Tag[]; splits:TransactionSplit[] }
 export type CreditCardInvoiceStatus = 'open' | 'closed' | 'paid' | 'rolled_over'
 export interface CreditCardInstallment { id: string; invoiceId: string; transactionId?: string; description: string; amountCents: number; installmentNumber: number; installmentCount: number; openingDebt?: boolean }
 export interface CreditCardPayment { id: string; invoiceId: string; accountId: string; accountName: string; transactionId: string; amountCents: number; occurrenceDate: string; createdAt: string }

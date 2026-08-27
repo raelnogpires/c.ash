@@ -4,12 +4,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"c.ash/internal/domain"
@@ -122,6 +124,66 @@ func TestEncryptionLifecycle(t *testing.T) {
 	}
 }
 
+func TestRecoverPassword_AppliesPendingMigrations(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cash.db")
+	db, err := sql.Open("sqlite3", "file:"+path+"?_foreign_keys=on")
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := fstest.MapFS{}
+	for _, name := range []string{"migrations/001_initial.sql", "migrations/002_transactions.sql", "migrations/003_fixed_expenses.sql", "migrations/004_pdf_imports.sql", "migrations/005_credit_cards.sql", "migrations/006_fixed_expense_occurrence_cursor.sql", "migrations/007_account_adjustments.sql", "migrations/008_planning.sql", "migrations/009_transaction_capabilities.sql", "migrations/010_transaction_search.sql"} {
+		legacy[name] = &fstest.MapFile{Data: mustReadMigration(t, name)}
+	}
+	if err := ApplyMigrations(ctx, db, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	key, err := randomBytes(databaseKeyBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovery, err := randomBytes(databaseKeyBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encryptedPath := filepath.Join(dir, "encrypted.db")
+	if err := convertDatabase(ctx, path, nil, encryptedPath, key); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(encryptedPath, path); err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := newKeyFile(testPassword, key, recovery, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSONAtomic(filepath.Join(dir, "cash.keys"), metadata, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := OpenWithVersion(ctx, path, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.RecoverPassword(ctx, formatRecoveryKey(recovery), "nova-senha-segura", "nova-senha-segura", "test"); err != nil {
+		t.Fatal(err)
+	}
+	var migrations int
+	if err := store.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&migrations); err != nil || migrations != latestSchemaVersion() {
+		t.Fatalf("migrations=%d err=%v", migrations, err)
+	}
+	if _, err := store.db.ExecContext(ctx, `SELECT archived_at FROM categories LIMIT 1`); err != nil {
+		t.Fatalf("latest category schema unavailable: %v", err)
+	}
+}
+
 func TestBackupExportAndRestoreRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -134,12 +196,15 @@ func TestBackupExportAndRestoreRoundTrip(t *testing.T) {
 	if err := store.InsertAccount(ctx, account, account.CreatedAt); err != nil {
 		t.Fatal(err)
 	}
-	active := domain.Transaction{ID: "active", Kind: domain.Income, AmountCents: 12345, AccountID: account.ID, Description: "Linha 1; \"cotação\"\nLinha 2", OccurrenceDate: "2026-08-02", CreatedAt: "2026-08-02T10:00:00Z", UpdatedAt: "2026-08-02T10:00:00Z"}
+	active := domain.Transaction{ID: "active", Kind: domain.Income, AmountCents: 12345, AccountID: account.ID, CategoryID: "salary", Description: "Linha 1; \"cotação\"\nLinha 2", OccurrenceDate: "2026-08-02", CreatedAt: "2026-08-02T10:00:00Z", UpdatedAt: "2026-08-02T10:00:00Z", Tags: []domain.Tag{{Name: "Trabalho"}}, Splits: []domain.TransactionSplit{{ID: "split-active", CategoryID: "salary", AmountCents: 12345}}}
 	trashed := domain.Transaction{ID: "trashed", Kind: domain.Expense, AmountCents: 100, AccountID: account.ID, CategoryID: "food", Description: "Removida", OccurrenceDate: "2026-08-03", CreatedAt: "2026-08-03T10:00:00Z", UpdatedAt: "2026-08-03T10:00:00Z"}
 	for _, transaction := range []domain.Transaction{active, trashed} {
 		if err := store.InsertTransaction(ctx, transaction, transaction.CreatedAt); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := store.storeWrite(func(q *dbQueries) error { return q.SaveTransactionDetails(ctx, active) }); err != nil {
+		t.Fatal(err)
 	}
 	if err := store.SetTransactionDeletedAt(ctx, trashed.ID, "2026-08-04T00:00:00Z", "2026-08-04T00:00:00Z"); err != nil {
 		t.Fatal(err)
@@ -165,7 +230,7 @@ func TestBackupExportAndRestoreRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	csvData, _ := os.ReadFile(csvPath)
-	if !bytes.HasPrefix(csvData, []byte{0xef, 0xbb, 0xbf}) || !bytes.Contains(csvData, []byte("Conta; Açúcar")) || bytes.Contains(csvData, []byte("Removida")) || !bytes.Contains(csvData, []byte("123,45")) {
+	if !bytes.HasPrefix(csvData, []byte{0xef, 0xbb, 0xbf}) || !bytes.Contains(csvData, []byte("Conta; Açúcar")) || bytes.Contains(csvData, []byte("Removida")) || !bytes.Contains(csvData, []byte("123,45")) || !bytes.Contains(csvData, []byte("Trabalho")) || !bytes.Contains(csvData, []byte("split-active")) {
 		t.Fatalf("unexpected CSV: %q", csvData)
 	}
 	jsonPath := filepath.Join(dir, "export.json")

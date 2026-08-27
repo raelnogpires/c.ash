@@ -197,9 +197,6 @@ e nos relatórios, mas não alteram novamente o saldo de abertura informado pelo
 usuário.
 PDFs protegidos por senha ou compostos apenas por imagens não são compatíveis.
 
-Os comandos do frontend e de empacotamento serão documentados quando as
-ferramentas forem configuradas.
-
 ## Documentação
 
 - [Especificação do produto](docs/product.md)

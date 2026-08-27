@@ -246,6 +246,20 @@ func (a *App) SetMonthlyBudget(in application.MonthlyBudgetInput) (domain.Monthl
 	v, err := a.service.SetMonthlyBudget(a.context(), in)
 	return v, safe(err)
 }
+func (a *App) CreateCategory(in application.CategoryInput) (domain.Category, error) {
+	v, err := a.service.CreateCategory(a.context(), in)
+	return v, safe(err)
+}
+func (a *App) RenameCategory(id string, in application.CategoryInput) (domain.Category, error) {
+	v, err := a.service.RenameCategory(a.context(), id, in)
+	return v, safe(err)
+}
+func (a *App) ArchiveCategory(id string) error {
+	return safe(a.service.ArchiveCategory(a.context(), id))
+}
+func (a *App) RestoreCategory(id string) error {
+	return safe(a.service.RestoreCategory(a.context(), id))
+}
 func (a *App) SaveGoal(id string, in application.GoalInput) (domain.Goal, error) {
 	v, err := a.service.SaveGoal(a.context(), id, in)
 	return v, safe(err)
@@ -377,6 +391,7 @@ func safe(err error) error {
 		{domain.ErrInvalidTheme, "Escolha um tema válido."}, {domain.ErrUnknownAccount, "A conta selecionada não existe."},
 		{domain.ErrAccountInUse, "Esta conta possui movimentações e não pode ser removida."},
 		{domain.ErrUnknownCategory, "A categoria selecionada não existe."}, {domain.ErrCategoryKind, "A categoria não corresponde ao tipo da movimentação."},
+		{domain.ErrDuplicateCategory, "Já existe uma categoria com esse nome."}, {domain.ErrCategoryArchived, "Esta categoria está arquivada."},
 		{domain.ErrSameTransferAccount, "Escolha contas diferentes para a transferência."}, {domain.ErrTransferCategory, "Transferências não usam categoria."},
 		{domain.ErrSavingsNegative, "Essa operação deixaria uma poupança com saldo negativo."}, {domain.ErrUnknownTransaction, "A movimentação não existe mais."},
 		{domain.ErrTransactionActive, "A movimentação já está ativa."}, {domain.ErrTransactionTrashed, "A movimentação já foi removida."},
