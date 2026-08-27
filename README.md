@@ -9,6 +9,9 @@ O projeto começa como uma ferramenta pessoal. Uma eventual transformação em
 produto será decidida depois que o uso cotidiano validar a experiência e as
 funcionalidades.
 
+> MVP implementado. A distribuição oficial é feita pela página de
+> [releases no GitHub](https://github.com/raelnogpires/c.ash/releases).
+
 ## Princípios
 
 - **Local primeiro:** dados financeiros permanecem na máquina e o aplicativo
@@ -25,9 +28,9 @@ funcionalidades.
 - **UI/UX como prioridade do MVP:** a interface deve ser clara, rápida,
   acessível e mais conveniente que uma planilha.
 
-## Escopo do MVP
+## Recursos
 
-O primeiro lançamento incluirá:
+O MVP oferece:
 
 - onboarding com nome, moeda, contas, saldos iniciais e meta de reserva;
 - contas correntes, carteira, poupança e cartões de crédito com faturas;
@@ -46,7 +49,7 @@ investimentos e cotações, módulo especializado de empréstimos, múltiplos
 usuários, anexos de comprovantes, aplicativos móveis, telemetria e notificações
 com o aplicativo fechado.
 
-## Stack planejada
+## Stack
 
 - **Desktop:** Wails v2 estável
 - **Domínio e persistência:** Go
@@ -57,7 +60,7 @@ As regras financeiras e a persistência ficam em Go. A interface cuida apenas
 da apresentação, do estado transitório das telas e de validações imediatas de
 formulário.
 
-## Desenvolvimento
+## Desenvolvimento e validação
 
 O primeiro fluxo vertical já está implementado com Go 1.25+, Wails v2.13.0,
 React, TypeScript, Vite e SQLite/SQLCipher. A compilação exige CGO, compilador C
@@ -156,8 +159,24 @@ mas não exige comandos manuais. Em macOS com Apple Silicon, a release entrega
 um arquivo `.zip` com o aplicativo, disponível para download na página da
 release do GitHub. Esse aplicativo não é assinado ou reconhecido pela Apple e
 pode exigir que a pessoa usuária confirme sua abertura no macOS; ele também não
-oferece atualização automática. Releases são geradas por tags semânticas como
-`v0.2.0` no GitHub Actions.
+oferece atualização automática. Releases são geradas automaticamente pelo
+GitHub Actions quando uma tag semântica como `v0.2.0` é publicada. O fluxo
+valida a tag, executa os testes e gera os artefatos abaixo:
+
+- `cash_<versão>_windows_amd64_setup.exe`: instalador NSIS para Windows 10/11
+  em computadores Intel ou AMD;
+- `cash_<versão>_linux_amd64.deb`: pacote Debian para Linux amd64;
+- `cash_<versão>_darwin_arm64.zip`: aplicativo para macOS com Apple Silicon.
+
+Para publicar uma versão, crie e envie uma tag no formato `vMAJOR.MINOR.PATCH`:
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+Depois que o workflow terminar, os instaladores estarão disponíveis na página
+da release correspondente.
 
 Os dados de produção ficam em `c.ash/cash.db` sob o diretório de configuração
 do usuário da plataforma. Testes injetam caminhos temporários e não usam dados
@@ -208,15 +227,8 @@ PDFs protegidos por senha ou compostos apenas por imagens não são compatíveis
 Esses documentos registram o entendimento atual do MVP. Mudanças estruturais
 devem atualizar a documentação correspondente junto com o código.
 
-## Ordem de implementação
+## Estado do projeto
 
-1. Arquitetura e modelo de dados.
-2. Sistema visual e protótipo navegável.
-3. Primeira fatia funcional: onboarding, conta, transação e dashboard.
-4. Demais recursos financeiros do MVP.
-5. Segurança, importação, backup e restauração.
-6. Empacotamento e validação em Windows, macOS e Linux.
-
-O primeiro marco será uma fatia vertical com dados reais no SQLite, não apenas
-um protótipo visual. Até backup, restauração, criptografia e migrações estarem
-validados, o desenvolvimento usará somente dados fictícios.
+O fluxo principal do MVP está implementado e coberto por testes de domínio,
+persistência, importação, segurança e interface. O empacotamento de release é
+validado em GitHub Actions para Windows, Linux e macOS Apple Silicon.
