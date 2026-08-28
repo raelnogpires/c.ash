@@ -1,8 +1,9 @@
 import {
   Archive, ArrowDownRight, ArrowRight, ArrowRightLeft, ArrowUpRight, CalendarClock,
-  Check, ChevronRight, CircleDashed, Ellipsis, Equal, Eye, EyeOff, House, List,
-  Palette, PanelLeftClose, PanelLeftOpen, Plus, ReceiptText, RotateCcw, ShieldCheck,
-  Trash2, TriangleAlert, WalletCards, WalletMinimal, X, type LucideIcon,
+  ChartPie, Check, ChevronRight, CircleDashed, CreditCard, Ellipsis, Equal, Eye,
+  EyeOff, House, List, Palette, PanelLeftClose, PanelLeftOpen, Plus, ReceiptText,
+  RotateCcw, ShieldCheck, Tags, Target, Trash2, TriangleAlert, WalletCards,
+  WalletMinimal, X, type LucideIcon,
 } from 'lucide-react'
 import { forwardRef, useEffect, useId, useRef, useState, type PropsWithChildren, type ReactNode } from 'react'
 import { formatBRL, formatDate } from './format'
@@ -11,12 +12,12 @@ import type { Account, Transaction } from './types'
 const iconMap = {
   archive: Archive, arrowDownRight: ArrowDownRight, arrowRight: ArrowRight,
   arrowRightLeft: ArrowRightLeft, arrowUpRight: ArrowUpRight,
-  calendarClock: CalendarClock, check: Check, chevronRight: ChevronRight,
+  budget: ChartPie, calendarClock: CalendarClock, cards: CreditCard, check: Check, chevronRight: ChevronRight,
   circleDashed: CircleDashed, ellipsis: Ellipsis, equal: Equal, eye: Eye,
   eyeOff: EyeOff, house: House, list: List, palette: Palette,
   panelLeftClose: PanelLeftClose, panelLeftOpen: PanelLeftOpen, plus: Plus,
   receipt: ReceiptText, restore: RotateCcw, shieldCheck: ShieldCheck, trash: Trash2, warning: TriangleAlert,
-  wallet: WalletCards, walletMinimal: WalletMinimal, close: X,
+  tags: Tags, target: Target, wallet: WalletCards, walletMinimal: WalletMinimal, close: X,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof iconMap
@@ -33,6 +34,76 @@ export const Button = forwardRef<HTMLButtonElement, PropsWithChildren<{ kind?: '
   const resolvedState = isLoading ? 'loading' : state
   return <button ref={ref} {...props} className={['button', `button--${kind}`, className].filter(Boolean).join(' ')} data-state={resolvedState} aria-busy={isLoading ? true : undefined} aria-live={isLoading ? 'polite' : undefined} disabled={disabled || isLoading}>{children}</button>
 })
+
+export function Modal({ children, onClose, busy = false, dismissible = true, labelledBy, describedBy, className = '', alert = false }: PropsWithChildren<{ onClose(): void; busy?: boolean; dismissible?: boolean; labelledBy?: string; describedBy?: string; className?: string; alert?: boolean }>) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null)
+  const closeRef = useRef(onClose)
+  const busyRef = useRef(busy)
+  const dismissibleRef = useRef(dismissible)
+  closeRef.current = onClose
+  busyRef.current = busy
+  dismissibleRef.current = dismissible
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const previousFocus = previousFocusRef.current
+    const supportsNativeDialog = typeof dialog.showModal === 'function'
+    if (supportsNativeDialog) dialog.showModal()
+    else dialog.setAttribute('open', '')
+    const escapeFallback = (event: KeyboardEvent) => {
+      if (!supportsNativeDialog && event.key === 'Escape' && !busyRef.current && dismissibleRef.current) {
+        event.preventDefault()
+        closeRef.current()
+      }
+    }
+    window.addEventListener('keydown', escapeFallback)
+    const focusFrame = requestAnimationFrame(() => {
+      const preferred = dialog.querySelector<HTMLElement>('[autofocus], [data-dialog-initial]')
+      const firstInteractive = dialog.querySelector<HTMLElement>('input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), .button:not([disabled]), button:not(.icon-button):not([disabled])')
+      ;(preferred ?? firstInteractive ?? dialog).focus()
+    })
+    return () => {
+      cancelAnimationFrame(focusFrame)
+      window.removeEventListener('keydown', escapeFallback)
+      if (typeof dialog.close === 'function' && dialog.open) dialog.close()
+      else dialog.removeAttribute('open')
+      requestAnimationFrame(() => {
+        if (previousFocus?.isConnected) previousFocus.focus()
+      })
+    }
+  }, [])
+
+  return <dialog
+    ref={dialogRef}
+    tabIndex={-1}
+    className={['dialog', className].filter(Boolean).join(' ')}
+    role={alert ? 'alertdialog' : 'dialog'}
+    aria-modal="true"
+    aria-labelledby={labelledBy}
+    aria-describedby={describedBy}
+    aria-busy={busy || undefined}
+    onCancel={(event) => {
+      event.preventDefault()
+      if (!busy && dismissible) closeRef.current()
+    }}
+    onMouseDown={(event) => {
+      if (busy || !dismissible) return
+      const bounds = event.currentTarget.getBoundingClientRect()
+      const onBackdrop = event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom
+      if (onBackdrop) closeRef.current()
+    }}
+  >{children}</dialog>
+}
+
+export function ProgressMeter({ value, label }: { value: number; label: string }) {
+  const bounded = Math.max(0, Math.min(value, 100))
+  return <div className="progress-meter">
+    <div className="progress-meter__label"><span>{label}</span><strong>{Math.round(bounded)}%</strong></div>
+    <progress value={bounded} max="100" aria-label={`${label}: ${Math.round(bounded)}%`}>{Math.round(bounded)}%</progress>
+  </div>
+}
 
 export function EmptyState({ title, children, action, icon = 'circleDashed' }: PropsWithChildren<{ title: string; action?: ReactNode; icon?: IconName }>) {
   return <section className="empty"><div className="empty__mark" aria-hidden="true"><Icon name={icon}/></div><h3>{title}</h3><p>{children}</p>{action}</section>

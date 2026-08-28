@@ -1,5 +1,21 @@
 [
   {
+    "date": "2026-08-28",
+    "scope": "goals-view",
+    "macrostructure": "Stat-Led aligned work surface",
+    "theme": "preserved light/dark/gothic with bundled Inter Variable and Lucide",
+    "enrichment": "none",
+    "brief": "align the goals empty, list, and editor states to one responsive grid"
+  },
+  {
+    "date": "2026-08-28",
+    "scope": "app",
+    "macrostructure": "Stat-Led with open work surfaces",
+    "theme": "preserved light/dark/gothic with bundled Inter Variable and Lucide",
+    "enrichment": "none",
+    "brief": "remove card soup, duplicated empty-state actions, irrelevant global CTAs, and responsive planning failures"
+  },
+  {
     "date": "2026-08-21",
     "scope": "app",
     "macrostructure": "Stat-Led",

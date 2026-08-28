@@ -146,7 +146,13 @@
   --theme-swatch-height: 6.5rem;
   --dialog-width: 42rem;
   --dialog-confirm-width: 31rem;
+  --dialog-settings-width: 35rem;
   --combobox-height: 13rem;
+  --textarea-min-height: 6rem;
+  --unlock-card-width: 30rem;
+  --license-panel-height: 20rem;
+  --summary-card-min-width: 16rem;
+  --statement-copy-width: 27rem;
   --backdrop-blur: 3px;
 
   /* Stacking is named so menus and feedback never compete accidentally. */
