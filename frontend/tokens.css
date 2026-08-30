@@ -1,7 +1,5 @@
-/* Hallmark · runtime token source · editorial utility
- * Themes: light · dark · gothic
- * Geometry is shared by every theme; only semantic colour values change.
- * Pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass · motion: restrained
+/* Runtime visual tokens for the [c]ash desktop interface.
+ * Themes share geometry and motion while expressing distinct materials.
  */
 
 :root {
@@ -309,4 +307,182 @@
   --rule: var(--color-rule);
   --rule-2: var(--color-rule-2);
   --focus-ring: var(--color-focus);
+}
+
+/* Material overrides. Keep the public semantic names above stable while
+ * giving the new interface a quieter canvas, layered surfaces and stronger
+ * depth cues. The final declarations intentionally win over the legacy
+ * compatibility values above. */
+:root {
+  --color-paper: oklch(97.15% 0.0105 88.90);
+  --color-paper-2: oklch(99.35% 0.0055 88.70);
+  --color-paper-3: oklch(94.60% 0.0145 88.85);
+  --color-surface-raised: oklch(99.70% 0.0035 88.50);
+  --color-ink: oklch(24.80% 0.0220 160.50);
+  --color-ink-2: oklch(45.50% 0.0230 160.00);
+  --color-muted: oklch(49.50% 0.0180 160.00);
+  --color-neutral: oklch(49.50% 0.0180 160.00);
+  --color-rule: oklch(88.20% 0.0135 88.60);
+  --color-rule-2: oklch(79.50% 0.0200 88.40);
+  --color-accent: oklch(42.00% 0.1000 160.00);
+  --color-accent-strong: oklch(35.00% 0.0920 160.00);
+  --color-accent-soft: oklch(92.60% 0.0310 159.00);
+  --color-accent-ink: oklch(98.50% 0.0060 88.00);
+  --color-positive: oklch(49.00% 0.1200 157.00);
+  --color-positive-soft: oklch(93.50% 0.0330 157.00);
+  --color-negative: oklch(52.00% 0.1450 27.00);
+  --color-negative-soft: oklch(93.30% 0.0300 27.00);
+  --color-negative-ink: oklch(98.50% 0.0060 88.00);
+  --color-warning: oklch(52.00% 0.1150 70.00);
+  --color-warning-surface: oklch(94.60% 0.0260 82.00);
+  --color-warning-border: oklch(52.00% 0.1150 70.00 / 42%);
+  --color-focus: oklch(49.00% 0.1450 160.00);
+  --color-overlay: oklch(14.00% 0.0200 160.00 / 58%);
+  --color-overlay-ink: var(--color-paper-2);
+  --color-accent-overlay-border: oklch(98% 0.0060 160 / 34%);
+  --color-accent-overlay-hover: oklch(98% 0.0060 160 / 15%);
+
+  --font-weight-semibold: 620;
+  --font-weight-bold: 680;
+  --tracking-display: -0.045em;
+  --tracking-tight: -0.025em;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius: 16px;
+  --radius-card: 18px;
+  --radius-input: 12px;
+  --radius-button: 12px;
+  --control-height: 44px;
+  --icon-button-size: 44px;
+  --sidebar-width: 15.5rem;
+  --sidebar-collapsed-width: 5rem;
+  --content-max: 90rem;
+  --backdrop-blur: 18px;
+
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-press: 120ms;
+  --dur-control: 180ms;
+  --dur-page: 260ms;
+  --dur-feedback: 360ms;
+  --dur-micro: var(--dur-press);
+  --dur-short: var(--dur-page);
+  --dur-long: var(--dur-feedback);
+  --dur-loading: 1600ms;
+  --duration-micro: var(--dur-press);
+  --duration-short: var(--dur-control);
+  --duration-long: var(--dur-page);
+
+  --shadow-card: 0 14px 38px oklch(22% 0.025 160 / 7%), 0 2px 8px oklch(22% 0.025 160 / 4%);
+  --shadow-dialog: 0 28px 90px oklch(12% 0.020 160 / 30%), 0 3px 14px oklch(12% 0.020 160 / 10%);
+  --shadow-selected: 0 5px 14px oklch(22% 0.025 160 / 11%), 0 1px 3px oklch(22% 0.025 160 / 7%);
+  --shadow-menu: 0 18px 50px oklch(12% 0.020 160 / 19%), 0 3px 10px oklch(12% 0.020 160 / 9%);
+  --accent-gradient: linear-gradient(135deg, oklch(47% 0.105 160), var(--color-accent));
+  --surface-glass: color-mix(in oklab, var(--color-paper-2) 82%, transparent);
+  --surface-glass-strong: color-mix(in oklab, var(--color-surface-raised) 90%, transparent);
+  --surface-hover: color-mix(in oklab, var(--color-paper-3) 68%, var(--color-paper-2));
+  --surface-pressed: color-mix(in oklab, var(--color-paper-3) 90%, var(--color-paper-2));
+
+  /* Keep the short aliases live for existing components. */
+  --canvas: var(--color-paper);
+  --surface: var(--color-paper-2);
+  --surface-muted: var(--color-paper-3);
+  --surface-raised: var(--color-surface-raised);
+  --text: var(--color-ink);
+  --text-muted: var(--color-muted);
+  --border: var(--color-rule);
+  --border-strong: var(--color-rule-2);
+  --accent: var(--color-accent);
+  --accent-strong: var(--color-accent-strong);
+  --accent-soft: var(--color-accent-soft);
+  --accent-ink: var(--color-accent-ink);
+  --positive: var(--color-positive);
+  --positive-soft: var(--color-positive-soft);
+  --negative: var(--color-negative);
+  --negative-soft: var(--color-negative-soft);
+  --negative-ink: var(--color-negative-ink);
+  --warning: var(--color-warning);
+  --warning-border: var(--color-warning-border);
+  --warning-surface: var(--color-warning-surface);
+  --focus: var(--color-focus);
+  --overlay: var(--color-overlay);
+}
+
+:root[data-theme="dark"] {
+  --color-paper: oklch(17.80% 0.0180 158.50);
+  --color-paper-2: oklch(21.80% 0.0210 158.00);
+  --color-paper-3: oklch(26.30% 0.0230 158.00);
+  --color-surface-raised: oklch(24.40% 0.0220 158.00);
+  --color-ink: oklch(95.20% 0.0120 145.00);
+  --color-ink-2: oklch(77.00% 0.0250 154.00);
+  --color-muted: oklch(72.00% 0.0230 154.00);
+  --color-neutral: oklch(72.00% 0.0230 154.00);
+  --color-rule: oklch(34.50% 0.0260 158.00);
+  --color-rule-2: oklch(44.50% 0.0310 158.00);
+  --color-accent: oklch(78.00% 0.1050 158.00);
+  --color-accent-strong: oklch(84.00% 0.0900 158.00);
+  --color-accent-soft: oklch(30.50% 0.0600 158.00);
+  --color-accent-ink: oklch(18.00% 0.0180 158.00);
+  --color-positive: oklch(78.00% 0.1150 157.00);
+  --color-positive-soft: oklch(30.00% 0.0610 157.00);
+  --color-negative: oklch(76.00% 0.1250 27.00);
+  --color-negative-soft: oklch(30.00% 0.0600 27.00);
+  --color-negative-ink: oklch(18.00% 0.0180 27.00);
+  --color-warning: oklch(81.00% 0.1250 78.00);
+  --color-warning-surface: oklch(29.00% 0.0350 119.00);
+  --color-warning-border: oklch(81.00% 0.1250 78.00 / 48%);
+  --color-focus: oklch(82.00% 0.1000 158.00);
+  --color-overlay: oklch(5.00% 0.0180 158.00 / 64%);
+  --color-accent-overlay-border: oklch(98% 0.012 158 / 30%);
+  --color-accent-overlay-hover: oklch(98% 0.012 158 / 13%);
+  --shadow-card: 0 18px 48px oklch(5% 0.020 158 / 32%), 0 2px 8px oklch(5% 0.020 158 / 24%);
+  --shadow-dialog: 0 30px 90px oklch(4% 0.020 158 / 58%), 0 3px 14px oklch(4% 0.020 158 / 22%);
+  --shadow-selected: 0 6px 18px oklch(5% 0.020 158 / 30%), 0 1px 3px oklch(5% 0.020 158 / 20%);
+  --shadow-menu: 0 20px 55px oklch(4% 0.020 158 / 46%), 0 3px 10px oklch(4% 0.020 158 / 26%);
+  --accent-gradient: linear-gradient(135deg, oklch(83% 0.105 158), var(--color-accent));
+  --surface-glass: color-mix(in oklab, var(--color-paper-2) 78%, transparent);
+  --surface-glass-strong: color-mix(in oklab, var(--color-surface-raised) 88%, transparent);
+  --surface-hover: color-mix(in oklab, var(--color-paper-3) 72%, var(--color-paper-2));
+  --surface-pressed: color-mix(in oklab, var(--color-paper-3) 92%, var(--color-paper-2));
+}
+
+:root[data-theme="gothic"] {
+  --color-paper: oklch(14.30% 0.0140 350.00);
+  --color-paper-2: oklch(18.70% 0.0220 350.00);
+  --color-paper-3: oklch(23.60% 0.0350 350.00);
+  --color-surface-raised: oklch(21.40% 0.0280 350.00);
+  --color-ink: oklch(94.00% 0.0200 70.00);
+  --color-ink-2: oklch(76.00% 0.0290 39.00);
+  --color-muted: oklch(71.00% 0.0300 35.00);
+  --color-neutral: oklch(71.00% 0.0300 35.00);
+  --color-rule: oklch(34.00% 0.0520 350.00);
+  --color-rule-2: oklch(46.00% 0.0720 350.00);
+  --color-accent: oklch(70.00% 0.1450 6.00);
+  --color-accent-strong: oklch(78.00% 0.1250 6.00);
+  --color-accent-soft: oklch(28.00% 0.0880 350.00);
+  --color-accent-ink: oklch(18.00% 0.0240 350.00);
+  --color-positive: oklch(77.00% 0.0820 150.00);
+  --color-positive-soft: oklch(30.00% 0.0500 150.00);
+  --color-negative: oklch(75.00% 0.1400 14.00);
+  --color-negative-soft: oklch(30.00% 0.0850 8.00);
+  --color-negative-ink: oklch(18.00% 0.0240 14.00);
+  --color-warning: oklch(79.00% 0.1250 79.00);
+  --color-warning-surface: oklch(25.00% 0.0400 48.00);
+  --color-warning-border: oklch(79.00% 0.1250 79.00 / 48%);
+  --color-focus: oklch(78.00% 0.1350 6.00);
+  --color-overlay: oklch(5.00% 0.0220 350.00 / 66%);
+  --color-accent-overlay-border: oklch(98% 0.020 6 / 32%);
+  --color-accent-overlay-hover: oklch(98% 0.020 6 / 14%);
+  --shadow-card: 0 18px 48px oklch(5% 0.028 350 / 40%), 0 0 0 1px oklch(75% 0.10 6 / 5%);
+  --shadow-dialog: 0 30px 90px oklch(3% 0.030 350 / 62%), 0 0 0 1px oklch(75% 0.10 6 / 7%);
+  --shadow-selected: 0 6px 18px oklch(5% 0.028 350 / 38%), 0 0 0 1px oklch(75% 0.10 6 / 8%);
+  --shadow-menu: 0 20px 55px oklch(3% 0.028 350 / 50%), 0 0 0 1px oklch(75% 0.10 6 / 6%);
+  --accent-gradient: linear-gradient(135deg, oklch(78% 0.125 6), var(--color-accent));
+  --surface-glass: color-mix(in oklab, var(--color-paper-2) 78%, transparent);
+  --surface-glass-strong: color-mix(in oklab, var(--color-surface-raised) 89%, transparent);
+  --surface-hover: color-mix(in oklab, var(--color-paper-3) 72%, var(--color-paper-2));
+  --surface-pressed: color-mix(in oklab, var(--color-paper-3) 92%, var(--color-paper-2));
 }

@@ -35,7 +35,9 @@ export const Button = forwardRef<HTMLButtonElement, PropsWithChildren<{ kind?: '
   return <button ref={ref} {...props} className={['button', `button--${kind}`, className].filter(Boolean).join(' ')} data-state={resolvedState} aria-busy={isLoading ? true : undefined} aria-live={isLoading ? 'polite' : undefined} disabled={disabled || isLoading}>{children}</button>
 })
 
-export function Modal({ children, onClose, busy = false, dismissible = true, labelledBy, describedBy, className = '', alert = false }: PropsWithChildren<{ onClose(): void; busy?: boolean; dismissible?: boolean; labelledBy?: string; describedBy?: string; className?: string; alert?: boolean }>) {
+export type ModalProps = PropsWithChildren<{ onClose(): void; busy?: boolean; dismissible?: boolean; labelledBy?: string; describedBy?: string; className?: string; alert?: boolean }>
+
+export function Modal({ children, onClose, busy = false, dismissible = true, labelledBy, describedBy, className = '', alert = false }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const closeRef = useRef(onClose)
@@ -95,6 +97,18 @@ export function Modal({ children, onClose, busy = false, dismissible = true, lab
       if (onBackdrop) closeRef.current()
     }}
   >{children}</dialog>
+}
+
+/**
+ * A responsive side sheet for focused, progressive forms.
+ *
+ * Sheet deliberately delegates its interaction model to Modal so the two
+ * surfaces share focus restoration, Escape handling, busy-state protection,
+ * and the same ARIA contract. The visual treatment is supplied by the
+ * `dialog--sheet` class in the application stylesheet.
+ */
+export function Sheet({ className = '', ...props }: ModalProps) {
+  return <Modal {...props} className={['dialog--sheet', className].filter(Boolean).join(' ')} />
 }
 
 export function ProgressMeter({ value, label }: { value: number; label: string }) {

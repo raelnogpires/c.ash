@@ -1,208 +1,204 @@
-# Design — [c]ash
+# Sistema visual — [c]ash
 
-A locked visual system for the desktop application. Every view uses the same
-geometry, typography, interaction language, and information hierarchy. The
-light, dark, and gothic themes change colour tokens only.
+Este documento é a referência de produto para o redesign do `[c]ash`: uma
+ferramenta pessoal de finanças, local-first, silenciosa e precisa. A direção é
+minimalista e premium, com a clareza espacial de um utilitário de plataforma,
+sem transformar o app em uma vitrine ou em um painel administrativo.
 
-## Genre
+## Princípios
 
-Modern-minimal utility: a calm personal ledger with the precision of a
-financial tool and the warmth required by someone organising money for the
-first time.
+1. **Uma pergunta por tela.** O título, o primeiro número e a primeira ação
+   devem explicar o que a pessoa pode fazer agora.
+2. **Hierarquia antes de decoração.** Espaço, tipografia e alinhamento carregam
+   a maior parte da interface; material, borda e sombra só separam camadas.
+3. **Detalhe sob demanda.** O caminho comum é curto. Campos, filtros e
+   explicações avançadas aparecem quando são necessários.
+4. **Dados honestos.** Saldos negativos, vazios, carregamento e falhas têm
+   tratamento explícito. Nenhum gráfico ou animação mascara o estado real.
+5. **Privacidade por padrão.** Dados financeiros permanecem no computador e
+   preferências de visibilidade são comunicadas com clareza.
 
-## Macrostructure family
+## Arquitetura de informação
 
-- App views: **Stat-Led**. The number that answers the view’s main question is
-  the visual anchor; supporting data follows as hairline-separated records.
-- Onboarding: **Split Studio**. Product promise and setup form share a diptych.
-- Dialogs: compact work surfaces with one clear action and no decorative layer.
+A navegação deixa de ser uma lista plana e passa a ser organizada por intenção.
+Os grupos são visíveis quando a barra está expandida e continuam acessíveis
+quando ela está recolhida.
 
-App components may use H4 Stat-Led, F3 Tabular Spec Sheet, C1 Outlined Chip,
-and N3 Side Rail. App views do not use hero imagery, decorative footers, or
-marketing enrichment.
+| Grupo | Destinos | Pergunta respondida |
+| --- | --- | --- |
+| **Visão** | Visão geral | Como está meu dinheiro hoje? |
+| **Atividade** | Movimentações | O que entrou, saiu ou foi transferido? |
+| **Patrimônio** | Contas; Cartões e faturas | Onde está o dinheiro e o que vence? |
+| **Planejamento** | Despesas fixas; Orçamento; Metas | O que preciso prever e priorizar? |
+| **Organização** | Categorias | Como quero classificar meus registros? |
+| **Sistema** | Configurações | Como ajusto privacidade, dados e aparência? |
 
-## Themes
+O rail mostra `[c]ash`, o grupo, o destino ativo e o perfil local. O estado
+recolhido mantém ícone, `aria-label`, tooltip e foco visível; nunca depende só
+de cor. Em larguras estreitas, o mesmo conjunto vira um dock inferior com os
+destinos de maior frequência e um menu para os demais.
 
-The existing colours are preserved perceptually and expressed as OKLCH tokens:
+## Contrato de janela e layout
 
-- **Light** — warm parchment, soft ivory surfaces, forest ink and accent.
-- **Dark** — green-black paper, lifted moss surfaces, mint accent.
-- **Gothic** — charcoal paper, burgundy rules, dusty-rose accent.
+- **Mínimo suportado:** `960 × 640 px`.
+- **Referência de revisão:** `1180 × 760 px`.
+- **Rail:** 248 px expandido, 80 px recolhido.
+- **Conteúdo:** coluna fluida, largura máxima de leitura de aproximadamente
+  1248 px, com gutters que diminuem gradualmente até a largura mínima.
+- **Cabeçalho:** título e contexto à esquerda; seletor de período, filtros e
+  ação global à direita.
+- **Ação global:** `+ Nova movimentação` fica no cabeçalho do shell e abre uma
+  sheet de lançamento rápido sem apagar o contexto da tela.
 
-Theme changes never move, resize, or rename a control. Positive values remain
-green; expenses and alerts remain red; icons, labels, and signs repeat every
-colour-coded meaning.
+O primeiro viewport deve revelar título, valor principal, ação primária e o
+início do conteúdo da tela. Listas longas rolam dentro do conteúdo; rail,
+sheet e cabeçalho não saltam durante a navegação.
 
-## Typography
+## Material e camadas
 
-- Display and body: bundled Inter Variable, roman, weights 400–600.
-- Financial values: Inter Variable, weights 500–600, tabular figures.
-- Display tracking: `-0.035em`; body tracking remains neutral.
-- Type scale: major third; the lead balance uses `--text-stat` and tabular figures.
-- Headings are always roman. Body copy stays between 45 and 75 characters where
-  it forms a paragraph.
+O material é sutil: superfícies opacas, contraste baixo e separadores finos.
+Transparência e blur ficam reservados para a camada que está sobre o app, nunca
+para cada card.
 
-Inter is packaged with the application, so the local-first interface remains
-network-free and visually consistent across platforms.
+| Camada | Uso | Tratamento |
+| --- | --- | --- |
+| **Canvas** | fundo da janela | cor de papel/carvão, sem gradiente obrigatório |
+| **Panel** | seção e lista | superfície levemente elevada, hairline e raio moderado |
+| **Raised** | stat principal, menu, popover | sombra difusa curta e contraste de superfície |
+| **Sheet** | edição e criação contextual | painel sólido, borda lateral e sombra de profundidade |
+| **Modal** | confirmação ou bloqueio | scrim discreto, foco isolado, largura curta |
 
-## Iconography and hierarchy
+Cards não devem formar uma grade de caixas iguais. O dashboard usa um stat
+dominante, seções abertas e divisores; cartões só aparecem quando agrupam uma
+decisão ou uma leitura relacionada. Não usar brilho, gradiente decorativo,
+neumorfismo ou glassmorphism como linguagem principal.
 
-- Lucide is the only interface icon family and is compiled into the application.
-- Icons use a consistent 1.8 stroke and never replace an accessible control name.
-- Income, expense, transfer, visibility, navigation, privacy, and empty states
-  use semantic Lucide glyphs rather than typographic characters.
-- Every view has one page title. Internal headings remain only when they add new
-  context; labels and footers never repeat the active destination.
+## Sheets, modais e formulários
 
-## Spacing
+Sheets são o padrão para criação, edição e detalhe que preserva o contexto:
 
-A named 4-point scale lives in `frontend/tokens.css`. Layout uses varied gaps
-from that scale; card padding, page padding, and section rhythm are deliberately
-not identical.
+- conta e ajuste de saldo;
+- cartão e pagamento de fatura;
+- despesa fixa e confirmação de ocorrência;
+- orçamento, meta e alocação;
+- categoria;
+- filtros avançados de movimentações;
+- nova movimentação rápida.
 
-## Motion
+No desktop, a sheet entra pela direita com aproximadamente 420–520 px. Em
+`960 × 640`, ela pode ocupar quase toda a largura sem esconder o cabeçalho do
+próprio formulário. Em uma janela estreita, vira uma tela empilhada com o
+mesmo cabeçalho, ação e ordem de foco.
 
-- Easings: `--ease-out`, `--ease-in`, and `--ease-in-out` only.
-- Motion primitives: button press, menu/dialog entrance, and undo snackbar.
-- Only `transform` and `opacity` animate.
-- Reduced motion removes spatial movement and collapses feedback to 1 ms.
+Modal central fica restrito a confirmação destrutiva, desbloqueio, recuperação,
+restauração, atualização e mensagens que exigem decisão imediata. Toda camada
+tem título, descrição quando necessário, ação primária nomeada e cancelamento
+óbvio. Escape fecha apenas o que é reversível; o foco retorna ao acionador.
 
-## Microinteractions stance
+Formulários mostram primeiro descrição, valor, data e conta. Categoria, origem,
+destino e recorrência aparecem de acordo com o tipo. `Mais detalhes` revela
+parcelas, tags, divisão, observações e regras avançadas; o estado aberto não é
+perdido ao validar. Erros ficam junto ao campo e também em um resumo acessível.
 
-- Success is silent when the result is already visible.
-- Reversible transaction removal is optimistic and offers Undo for eight seconds.
-- Destructive account removal retains explicit confirmation.
-- Focus is immediate and visible; hover is never the only affordance.
+## Tipografia, ícones e números
 
-## CTA voice
+- Inter Variable embutida é usada em títulos, corpo e valores.
+- Títulos são romanos, com peso e espaço para criar hierarquia; não há mistura
+  ornamental de famílias.
+- Valores financeiros usam algarismos tabulares, alinhamento consistente e
+  sinal textual (`+`, `−`) além de cor.
+- Lucide é a família única de ícones, com traço consistente e nome acessível em
+  qualquer controle sem texto.
+- O texto de interface é direto, em português brasileiro; rótulos não devem
+  depender de jargão contábil.
 
-- Primary: compact forest/mint/rose fill when the action must dominate.
-- Secondary: outlined rectangular control with a direct verb.
-- Labels stay on one line and controls share a 44 px minimum height.
+O dashboard responde primeiro “quanto posso usar com segurança?”. Saldo
+disponível é o maior stat; saldo total, reservado, receitas, despesas,
+faturas, orçamento e metas aparecem como contexto progressivo. Gráficos só
+entram quando respondem uma pergunta identificável e sempre têm resumo textual.
 
-## Per-view allowances
+## Temas
 
-- Dashboard may use the large stat, line chart, and proportional account bars.
-- Data-management views use open lists and hairline rules before cards.
-- Onboarding may use one typographic background mark; no photography or stock art.
-- Settings may preview all three palettes while preserving identical geometry.
+Os três temas compartilham geometria, conteúdo, ordem de foco e significado:
 
-## What views MUST share
+- **Claro:** papel quente, superfícies marfim, tinta verde profunda e acento
+  mineral.
+- **Escuro:** papel verde-preto, superfícies de musgo e acento menta.
+- **Gótico:** carvão, regras vinho e acento rosa envelhecido, com ornamentação
+  mínima e sem textura pesada.
 
-- `[c]ash` wordmark and its bracket motif.
-- The light, dark, and gothic palette families.
-- Inter typography, Lucide iconography, 4-point spacing scale, control height,
-  focus ring, and button language.
-- A compact collapsible rail on desktop and an icon dock at narrow widths.
-- Accessible loading, empty, error, disabled, success, and undo feedback.
+Tema altera tokens de cor, borda, sombra e scrim; nunca altera o layout nem
+esconde informação. Verde indica positivo, vermelho indica despesa/alerta e
+neutro indica transferência. Cada significado também tem rótulo, sinal ou
+ícone. O contraste e o foco devem ser revisados nos três temas.
 
-## What views MAY differ on
+## Movimento e preferência do sistema
 
-- The dominant stat or question answered by the view.
-- Whether supporting content is a ledger, a chart, a form, or a palette preview.
-- Section spacing and column proportions when the content requires it.
+Motion é funcional: orienta a origem de uma sheet, confirma uma mudança ou
+mostra o resultado de uma ação reversível.
 
-## Exports
+- microinteração: `120 ms`;
+- entrada/saída curta: `220 ms`;
+- transição de contexto: até `420 ms`;
+- easing único de saída suave, com transform e opacity como propriedades
+  preferenciais;
+- sem contagem animada de dinheiro, parallax ou movimento ornamental;
+- feedback permanece compreensível quando a animação é interrompida.
 
-`frontend/tokens.css` is the runtime source of truth and contains every theme.
-The following mappings make the core system portable.
+Com `prefers-reduced-motion: reduce`, remover deslocamento e blur animado,
+reduzir transições a uma troca imediata de estado e preservar foco, anúncio e
+ordem de conteúdo. O preview deve ser revisado tanto no modo normal quanto no
+reduzido.
 
-### tokens.css
+## Estados e acessibilidade
 
-```css
-@import "./frontend/tokens.css";
-```
+Cada destino precisa de uma representação para:
 
-### Tailwind v4 `@theme`
+- carregando, com estrutura estável e indicador discreto;
+- vazio, explicando por que está vazio e oferecendo o próximo passo;
+- preenchido, com ações e resumo;
+- negativo/alerta, sem esconder o problema nem usar tom punitivo;
+- erro recuperável, com causa curta e ação de tentar novamente;
+- sucesso e remoção reversível, com confirmação próxima da ação;
+- indisponível/desabilitado, explicando a dependência.
 
-```css
-@theme {
-  --color-paper: oklch(95.83% 0.0111 89.72);
-  --color-paper-2: oklch(99.42% 0.0069 88.64);
-  --color-paper-3: oklch(93.14% 0.0140 88.69);
-  --color-ink: oklch(26.84% 0.0189 160.95);
-  --color-muted: oklch(51.50% 0.0152 159.58);
-  --color-rule: oklch(88.57% 0.0142 88.69);
-  --color-accent: oklch(37.86% 0.0597 165.03);
-  --color-focus: oklch(53.24% 0.0794 163.94);
-  --font-display: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
-  --spacing-3xs: 0.25rem;
-  --spacing-2xs: 0.5rem;
-  --spacing-xs: 0.75rem;
-  --spacing-sm: 1rem;
-  --spacing-md: 1.25rem;
-  --spacing-lg: 1.5rem;
-  --spacing-xl: 1.75rem;
-  --spacing-2xl: 2rem;
-  --spacing-3xl: 2.5rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-md: 1.25rem;
-  --text-lg: 1.5625rem;
-  --radius-card: 0.75rem;
-  --radius-input: 0.5rem;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-}
-```
+Teclado, foco visível, nomes acessíveis, headings únicos, contraste, zoom e
+leitores de tela fazem parte da definição de pronto. Tabelas, barras e gráficos
+precisam de alternativa textual. Sheet e modal mantêm foco dentro da camada,
+fecham de forma previsível e não deixam o foco perdido no canvas.
 
-### DTCG `tokens.json`
+## Preview de revisão
 
-```json
-{
-  "$schema": "https://design-tokens.github.io/community-group/format/",
-  "color": {
-    "paper": { "$value": "oklch(95.83% 0.0111 89.72)", "$type": "color" },
-    "paper-2": { "$value": "oklch(99.42% 0.0069 88.64)", "$type": "color" },
-    "paper-3": { "$value": "oklch(93.14% 0.0140 88.69)", "$type": "color" },
-    "ink": { "$value": "oklch(26.84% 0.0189 160.95)", "$type": "color" },
-    "muted": { "$value": "oklch(51.50% 0.0152 159.58)", "$type": "color" },
-    "rule": { "$value": "oklch(88.57% 0.0142 88.69)", "$type": "color" },
-    "accent": { "$value": "oklch(37.86% 0.0597 165.03)", "$type": "color" },
-    "focus": { "$value": "oklch(53.24% 0.0794 163.94)", "$type": "color" }
-  },
-  "font": {
-    "display": { "$value": "Inter Variable, Inter, ui-sans-serif, system-ui, sans-serif", "$type": "fontFamily" },
-    "body": { "$value": "Inter Variable, Inter, ui-sans-serif, system-ui, sans-serif", "$type": "fontFamily" }
-  },
-  "space": {
-    "xs": { "$value": "0.75rem", "$type": "dimension" },
-    "sm": { "$value": "1rem", "$type": "dimension" },
-    "md": { "$value": "1.25rem", "$type": "dimension" },
-    "lg": { "$value": "1.5rem", "$type": "dimension" },
-    "xl": { "$value": "1.75rem", "$type": "dimension" },
-    "2xl": { "$value": "2rem", "$type": "dimension" },
-    "3xl": { "$value": "2.5rem", "$type": "dimension" }
-  },
-  "duration": {
-    "micro": { "$value": "120ms", "$type": "duration" },
-    "short": { "$value": "220ms", "$type": "duration" },
-    "long": { "$value": "420ms", "$type": "duration" }
-  }
-}
-```
+O entrypoint de revisão é `frontend/preview.html`, servido pelo Vite em
+`/preview.html`. Ele monta o `App` real com uma API mock local e determinística;
+`frontend/index.html` continua sendo o entrypoint de produção e não importa o
+preview.
 
-### shadcn/ui CSS variables
+Controles no canto superior permitem alternar:
 
-```css
-:root {
-  --background: 95.83% 0.0111 89.72;
-  --foreground: 26.84% 0.0189 160.95;
-  --card: 99.42% 0.0069 88.64;
-  --card-foreground: 26.84% 0.0189 160.95;
-  --popover: 98.68% 0.0118 79.79;
-  --popover-foreground: 26.84% 0.0189 160.95;
-  --primary: 37.86% 0.0597 165.03;
-  --primary-foreground: 95.83% 0.0111 89.72;
-  --secondary: 93.14% 0.0140 88.69;
-  --secondary-foreground: 26.84% 0.0189 160.95;
-  --muted: 88.57% 0.0142 88.69;
-  --muted-foreground: 51.50% 0.0152 159.58;
-  --destructive: 51.16% 0.1301 26.77;
-  --destructive-foreground: 98.68% 0.0118 79.79;
-  --border: 88.57% 0.0142 88.69;
-  --input: 81.76% 0.0145 88.70;
-  --ring: 53.24% 0.0794 163.94;
-  --radius: 0.75rem;
-}
-```
+- `Onboarding` (`scenario=onboarding`): configuração inicial sem nenhum dado;
+- `Completo` (`scenario=rich`): contas, cartão, atividade, orçamento, metas e
+  atualização disponível;
+- `Vazio` (`scenario=empty`): dashboard configurado ainda sem contas ou registros;
+- `Atenção` (`scenario=negative`): saldo negativo e orçamento excedido;
+- `Claro`, `Escuro` e `Gótico` (`theme=light|dark|gothic`).
+
+Exemplos: `/preview.html?scenario=rich&theme=dark` e
+`/preview.html?scenario=negative&theme=gothic`. Use `controls=0` para capturas
+sem o painel de revisão. A API mock cobre os fluxos
+visíveis para permitir navegação manual, sem persistência e sem chamadas de
+rede. O preview é uma ferramenta de inspeção, não uma nova rota de produto.
+
+## Critérios de revisão
+
+Uma entrega deste sistema está pronta quando, em `960 × 640` e `1180 × 760`:
+
+1. a arquitetura agrupada é compreensível em estado expandido e recolhido;
+2. o stat principal e a próxima ação são encontrados sem caça visual;
+3. criar ou editar um registro usa uma sheet, preserva contexto e devolve foco;
+4. vazio, negativo, loading e erro têm conteúdo útil;
+5. claro, escuro e gótico conservam legibilidade e semântica;
+6. motion reduzido remove deslocamento sem remover feedback;
+7. teclado, leitor de tela e zoom não quebram a tarefa;
+8. o preview percorre os fluxos com dados determinísticos e não altera o
+   entrypoint de produção.
