@@ -1,79 +1,84 @@
-/* Runtime visual tokens for the [c]ash desktop interface.
- * Themes share geometry and motion while expressing distinct materials.
+/* Hallmark · macrostructure: Workbench · genre: modern-minimal · design-system: DESIGN.md · designed-as-app · nav: N3 · footer: none */
+/* Hallmark · post-emit critique: P5 H5 E5 S5 R5 V5 */
+
+/*
+ * [c]ash runtime tokens
+ *
+ * The semantic palette is declared once for the light theme and overridden
+ * only by the two alternate themes below. Geometry, typography and motion
+ * stay invariant so a theme never changes the task or the focus order.
  */
 
 :root {
   color-scheme: light;
 
-  /* Light palette: warm parchment, ivory surfaces, forest ink. */
-  --color-paper: oklch(95.83% 0.0111 89.72);
-  --color-paper-2: oklch(99.42% 0.0069 88.64);
-  --color-paper-3: oklch(93.14% 0.0140 88.69);
-  --color-surface-raised: oklch(98.68% 0.0118 79.79);
-  --color-ink: oklch(26.84% 0.0189 160.95);
-  --color-ink-2: oklch(51.50% 0.0152 159.58);
-  --color-muted: oklch(51.50% 0.0152 159.58);
-  --color-neutral: oklch(51.50% 0.0152 159.58);
-  --color-rule: oklch(88.57% 0.0142 88.69);
-  --color-rule-2: oklch(81.76% 0.0145 88.70);
-  --color-accent: oklch(37.86% 0.0597 165.03);
-  --color-accent-strong: oklch(31.03% 0.0473 166.40);
-  --color-accent-soft: oklch(92.83% 0.0167 162.73);
-  --color-accent-ink: oklch(95.83% 0.0111 89.72);
-  --color-positive: oklch(50.61% 0.0919 161.45);
-  --color-positive-soft: oklch(94.45% 0.0199 159.74);
-  --color-negative: oklch(51.16% 0.1301 26.77);
-  --color-negative-soft: oklch(93.38% 0.0180 30.27);
-  --color-negative-ink: oklch(98.68% 0.0118 79.79);
-  --color-warning: oklch(51.21% 0.1010 70.15);
-  --color-warning-surface: oklch(94.78% 0.0160 82.79);
-  --color-warning-border: oklch(51.21% 0.1010 70.15 / 45%);
-  --color-focus: oklch(53.24% 0.0794 163.94);
-  --color-overlay: oklch(14.89% 0.0080 164.48 / 55%);
-  --color-overlay-ink: var(--color-paper-2);
+  /* Light: fogged paper, mineral surfaces and deep green ink. */
+  --color-paper: oklch(96.75% 0.0100 92);
+  --color-paper-2: oklch(99.15% 0.0045 92);
+  --color-paper-3: oklch(94.15% 0.0150 92);
+  --color-surface-raised: oklch(99.35% 0.0030 92);
+  --color-ink: oklch(25.50% 0.0220 158);
+  --color-ink-2: oklch(46.50% 0.0200 158);
+  --color-muted: oklch(51.00% 0.0160 158);
+  --color-neutral: oklch(51.00% 0.0160 158);
+  --color-rule: oklch(87.90% 0.0140 92);
+  --color-rule-2: oklch(79.50% 0.0200 92);
+  --color-accent: oklch(41.50% 0.1000 160);
+  --color-accent-strong: oklch(34.50% 0.0900 160);
+  --color-accent-soft: oklch(92.00% 0.0300 159);
+  --color-accent-ink: oklch(98.30% 0.0040 92);
+  --color-positive: oklch(49.50% 0.1150 157);
+  --color-positive-soft: oklch(93.50% 0.0320 157);
+  --color-negative: oklch(52.00% 0.1400 28);
+  --color-negative-soft: oklch(93.30% 0.0300 28);
+  --color-negative-ink: oklch(98.40% 0.0040 92);
+  --color-warning: oklch(53.00% 0.1150 72);
+  --color-warning-surface: oklch(94.80% 0.0250 82);
+  --color-warning-border: oklch(53.00% 0.1150 72 / 48%);
+  --color-focus: oklch(45.00% 0.1350 160);
+  --color-focus-on-accent: var(--color-accent-ink);
+  --color-focus-on-negative: var(--color-negative-ink);
+  --color-overlay: oklch(17.00% 0.0160 158 / 58%);
+  --color-overlay-solid: oklch(17.00% 0.0160 158);
   --color-transparent: oklch(50% 0.0100 160 / 0%);
-  --color-accent-overlay-border: oklch(96% 0.0060 160 / 30%);
-  --color-accent-overlay-hover: oklch(96% 0.0060 160 / 13%);
 
-  /* Theme previews stay stable so the picker can compare all three schemes. */
-  --preview-light-canvas: oklch(95.90% 0.0115 84.58);
-  --preview-light-border: oklch(88.37% 0.0175 84.59);
-  --preview-light-muted: oklch(86.08% 0.0156 90.25);
-  --preview-light-accent: oklch(42.62% 0.0589 163.97);
-  --preview-dark-canvas: oklch(21.44% 0.0119 156.08);
-  --preview-dark-border: oklch(36.09% 0.0218 158.10);
-  --preview-dark-muted: oklch(38.66% 0.0225 160.10);
-  --preview-dark-accent: oklch(77.68% 0.0772 159.44);
-  --preview-gothic-canvas: oklch(15.25% 0.0050 345.82);
-  --preview-gothic-border: oklch(37.07% 0.0362 357.27);
-  --preview-gothic-muted: oklch(33.11% 0.0397 1.90);
-  --preview-gothic-accent: oklch(53.84% 0.1021 6.01);
+  /* Stable swatches used by the local-only preview controls. */
+  --preview-light-canvas: oklch(96.75% 0.0100 92);
+  --preview-light-border: oklch(87.90% 0.0140 92);
+  --preview-light-muted: oklch(88.80% 0.0140 92);
+  --preview-light-accent: oklch(41.50% 0.1000 160);
+  --preview-dark-canvas: oklch(18.20% 0.0180 158);
+  --preview-dark-border: oklch(35.00% 0.0260 158);
+  --preview-dark-muted: oklch(38.50% 0.0240 158);
+  --preview-dark-accent: oklch(78.00% 0.1000 158);
+  --preview-gothic-canvas: oklch(15.30% 0.0140 350);
+  --preview-gothic-border: oklch(35.00% 0.0500 350);
+  --preview-gothic-muted: oklch(34.00% 0.0400 350);
+  --preview-gothic-accent: oklch(70.00% 0.1350 8);
   --color-preview-light-canvas: var(--preview-light-canvas);
   --color-preview-light-border: var(--preview-light-border);
   --color-preview-light-muted: var(--preview-light-muted);
   --color-preview-light-accent: var(--preview-light-accent);
-  --color-preview-light-ink: oklch(26.84% 0.0189 160.95);
+  --color-preview-light-ink: oklch(25.50% 0.0220 158);
   --color-preview-dark-canvas: var(--preview-dark-canvas);
   --color-preview-dark-border: var(--preview-dark-border);
   --color-preview-dark-muted: var(--preview-dark-muted);
   --color-preview-dark-accent: var(--preview-dark-accent);
-  --color-preview-dark-ink: oklch(95.40% 0.0068 145.52);
+  --color-preview-dark-ink: oklch(95.20% 0.0120 145);
   --color-preview-gothic-canvas: var(--preview-gothic-canvas);
   --color-preview-gothic-border: var(--preview-gothic-border);
   --color-preview-gothic-muted: var(--preview-gothic-muted);
   --color-preview-gothic-accent: var(--preview-gothic-accent);
-  --color-preview-gothic-ink: oklch(93.48% 0.0149 70.88);
+  --color-preview-gothic-ink: oklch(94.00% 0.0200 70);
 
-  /* Inter Variable is bundled with the application; no network request is required. */
-  --font-display: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  /* Geist differentiates display and wordmark; Inter keeps reading and data calm. */
+  --font-display: "Geist Variable", Geist, "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
   --font-body: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
-  --font-weight-regular: 400;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  --font-weight-semibold: 620;
+  --font-weight-bold: 680;
 
-  /* Type scale and rhythm. Headings remain roman in every theme. */
+  /* Type scale. Display headings remain roman in every theme. */
   --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -82,19 +87,15 @@
   --text-lg: 1.5625rem;
   --text-xl: 1.9531rem;
   --text-2xl: 2.4414rem;
-  --text-display-s: clamp(2.25rem, 4vw + 0.5rem, 3.8147rem);
+  --text-display-s: clamp(2.25rem, 4vw + 0.5rem, 3.8125rem);
   --text-display: clamp(2.75rem, 5vw + 1rem, 5.25rem);
-  --text-stat: clamp(2.5rem, 7vw, 6rem);
-  --leading-none: 1;
-  --leading-tight: 1.06;
   --leading-snug: 1.25;
   --leading-body: 1.55;
-  --leading-relaxed: 1.65;
-  --tracking-tight: -0.035em;
-  --tracking-display: -0.04em;
+  --tracking-tight: -0.025em;
+  --tracking-display: -0.045em;
   --tracking-label: 0.08em;
 
-  /* Named 4-point scale. This geometry is invariant across themes. */
+  /* 4-point rhythm shared by shell, content and overlays. */
   --space-3xs: 4px;
   --space-2xs: 8px;
   --space-xs: 12px;
@@ -105,30 +106,19 @@
   --space-2xl: 32px;
   --space-3xl: 40px;
   --space-4xl: 48px;
-  --space-5xl: 56px;
-  --space-6xl: 64px;
-  --space-7xl: 80px;
-  --space-8xl: 96px;
 
-  /* Rules, corners, and controls share one physical geometry. */
-  --rule-hairline: 1px;
-  --rule-strong: 2px;
+  /* Shared geometry. Content surfaces use a quiet 18px corner. */
   --rule-hair: 1px;
   --rule-fine: 2px;
   --rule-focus: 2px;
   --rule-chart: 3px;
-  --border-width: var(--rule-hair);
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius: 12px;
-  --radius-card: 12px;
-  --radius-input: 8px;
-  --radius-button: 8px;
+  --radius-xs: 6px;
+  --radius-card: 18px;
+  --radius-input: 12px;
+  --radius-button: 12px;
   --radius-pill: 999px;
   --control-height: 44px;
-  --control-height-compact: 40px;
+  --control-height-compact: 44px;
   --icon-button-size: 44px;
   --icon-size: 20px;
   --target-size: 44px;
@@ -137,10 +127,10 @@
   /* Application geometry. */
   --sidebar-width: 15.5rem;
   --sidebar-collapsed-width: 5rem;
-  --content-max: 78rem;
+  --content-max: 90rem;
   --dock-height: 4rem;
+  --shell-dock-height: var(--dock-height);
   --empty-height: 15rem;
-  --account-card-height: 11rem;
   --theme-swatch-height: 6.5rem;
   --dialog-width: 42rem;
   --dialog-confirm-width: 31rem;
@@ -149,70 +139,39 @@
   --textarea-min-height: 6rem;
   --unlock-card-width: 30rem;
   --license-panel-height: 20rem;
-  --summary-card-min-width: 16rem;
   --statement-copy-width: 27rem;
-  --backdrop-blur: 3px;
+  --backdrop-blur: 16px;
 
-  /* Stacking is named so menus and feedback never compete accidentally. */
-  --z-base: 0;
+  /* Layer names prevent a menu, sheet and snackbar from competing. */
   --z-sticky: 5;
   --z-menu: 7;
-  --z-dialog: 10;
-  --z-popover: 12;
   --z-snackbar: 20;
   --z-tooltip: 30;
   --z-dropdown: var(--z-menu);
-  --z-modal: var(--z-dialog);
   --z-toast: var(--z-snackbar);
 
-  /* Motion is limited to transform and opacity in consuming styles. */
+  /* Four deliberate timings: pressure, controls, page/sheet and feedback. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.7, 0, 0.84, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-micro: 120ms;
-  --dur-short: 220ms;
-  --dur-long: 420ms;
+  --ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-press: 120ms;
+  --dur-control: 180ms;
+  --dur-page: 260ms;
+  --dur-feedback: 360ms;
+  --dur-micro: var(--dur-press);
   --dur-loading: 1600ms;
-  --dur-reduced: 1ms;
-  --duration-micro: var(--dur-micro);
-  --duration-short: var(--dur-short);
-  --duration-long: var(--dur-long);
-  --duration-loading: var(--dur-loading);
 
-  /* Shared shadow geometry; theme overrides may only tune ink opacity. */
-  --shadow: 0 18px 55px oklch(29.76% 0.0174 158.81 / 8%);
-  --shadow-card: 0 8px 30px oklch(26.84% 0.0189 160.95 / 3%);
-  --shadow-dialog: 0 30px 90px oklch(12% 0.0100 160 / 30%);
-  --shadow-selected: 0 2px 8px oklch(12% 0.0100 160 / 7%);
-  --shadow-menu: 0 18px 55px oklch(12% 0.0100 160 / 18%);
-  --shadow-gothic-inset: inset 0 0 0 1px oklch(75.33% 0.0586 3.33 / 3%);
-  --shadow-none: 0 0 0 oklch(50% 0.0100 160 / 0%);
+  /* Neutral elevation. No theme uses a chromatic glow as a depth cue. */
+  --shadow-card: 0 1px 2px oklch(22% 0.015 158 / 7%);
+  --shadow-dialog: 0 28px 90px oklch(14% 0.015 158 / 30%);
+  --shadow-selected: 0 0 0 1px oklch(22% 0.015 158 / 11%);
+  --shadow-menu: 0 18px 50px oklch(14% 0.015 158 / 19%);
+  --shadow-gothic-inset: inset 0 0 0 1px var(--color-rule);
 
-  /* Short names retained for the first frontend slice during migration. */
-  --canvas: var(--color-paper);
-  --surface: var(--color-paper-2);
-  --surface-muted: var(--color-paper-3);
-  --surface-raised: var(--color-surface-raised);
-  --text: var(--color-ink);
-  --text-muted: var(--color-muted);
-  --border: var(--color-rule);
-  --border-strong: var(--color-rule-2);
-  --accent: var(--color-accent);
-  --accent-strong: var(--color-accent-strong);
-  --accent-soft: var(--color-accent-soft);
-  --accent-ink: var(--color-accent-ink);
-  --positive: var(--color-positive);
-  --positive-soft: var(--color-positive-soft);
-  --negative: var(--color-negative);
-  --negative-soft: var(--color-negative-soft);
-  --negative-ink: var(--color-negative-ink);
-  --warning: var(--color-warning);
-  --warning-border: var(--color-warning-border);
-  --warning-surface: var(--color-warning-surface);
-  --focus: var(--color-focus);
-  --overlay: var(--color-overlay);
-  --accent-overlay-border: var(--color-accent-overlay-border);
-  --accent-overlay-hover: var(--color-accent-overlay-hover);
+  /* Glass is reserved for shell chrome and overlays; every use has an opaque fallback. */
+  --surface-glass: color-mix(in oklab, var(--color-paper-2) 84%, transparent);
+  --surface-glass-strong: color-mix(in oklab, var(--color-surface-raised) 92%, transparent);
+  --surface-hover: color-mix(in oklab, var(--color-paper-3) 68%, var(--color-paper-2));
 }
 
 :root[data-theme="light"] {
@@ -222,267 +181,79 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  /* Dark palette: green-black paper, lifted moss surfaces, mint accent. */
-  --color-paper: oklch(19.68% 0.0121 155.94);
-  --color-paper-2: oklch(23.79% 0.0150 157.63);
-  --color-paper-3: oklch(28.15% 0.0177 158.71);
-  --color-surface-raised: oklch(26.10% 0.0180 158.55);
-  --color-ink: oklch(95.40% 0.0068 145.52);
-  --color-ink-2: oklch(75.57% 0.0167 154.37);
-  --color-muted: oklch(75.57% 0.0167 154.37);
-  --color-neutral: oklch(75.57% 0.0167 154.37);
-  --color-rule: oklch(36.09% 0.0218 158.10);
-  --color-rule-2: oklch(45.80% 0.0255 157.81);
-  --color-accent: oklch(77.68% 0.0772 159.44);
-  --color-accent-strong: oklch(83.17% 0.0627 160.02);
-  --color-accent-soft: oklch(33.51% 0.0388 160.65);
-  --color-accent-ink: oklch(18.92% 0.0098 158.99);
-  --color-positive: oklch(77.93% 0.0879 161.03);
-  --color-positive-soft: oklch(32.59% 0.0418 160.26);
-  --color-negative: oklch(76.69% 0.1015 27.16);
-  --color-negative-soft: oklch(31.37% 0.0363 24.61);
-  --color-negative-ink: oklch(17.10% 0.0158 26.01);
-  --color-warning: oklch(80.63% 0.1054 79.41);
-  --color-warning-surface: oklch(30.22% 0.0212 119.08);
-  --color-warning-border: oklch(80.63% 0.1054 79.41 / 45%);
-  --color-focus: oklch(81.17% 0.0703 160.01);
-  --color-overlay: oklch(8% 0.0080 160 / 55%);
-  --color-accent-overlay-border: oklch(96% 0.0060 160 / 30%);
-  --color-accent-overlay-hover: oklch(96% 0.0060 160 / 13%);
-
-  --shadow: 0 18px 55px oklch(8% 0.0080 160 / 25%);
-  --shadow-card: 0 8px 30px oklch(8% 0.0080 160 / 12%);
-  --shadow-dialog: 0 30px 90px oklch(8% 0.0080 160 / 44%);
-  --shadow-menu: 0 18px 55px oklch(8% 0.0080 160 / 35%);
+  /* Dark: graphite canvas, lifted green panels and mint accent. */
+  --color-paper: oklch(18.20% 0.0180 158);
+  --color-paper-2: oklch(22.00% 0.0210 158);
+  --color-paper-3: oklch(26.50% 0.0230 158);
+  --color-surface-raised: oklch(24.50% 0.0220 158);
+  --color-ink: oklch(95.20% 0.0120 145);
+  --color-ink-2: oklch(77.00% 0.0250 154);
+  --color-muted: oklch(72.00% 0.0230 154);
+  --color-neutral: oklch(72.00% 0.0230 154);
+  --color-rule: oklch(35.00% 0.0260 158);
+  --color-rule-2: oklch(44.50% 0.0310 158);
+  --color-accent: oklch(78.00% 0.1000 158);
+  --color-accent-strong: oklch(84.00% 0.0850 158);
+  --color-accent-soft: oklch(30.50% 0.0600 158);
+  --color-accent-ink: oklch(18.00% 0.0180 158);
+  --color-positive: oklch(78.00% 0.1100 157);
+  --color-positive-soft: oklch(30.00% 0.0600 157);
+  --color-negative: oklch(76.00% 0.1200 27);
+  --color-negative-soft: oklch(30.00% 0.0600 27);
+  --color-negative-ink: oklch(18.00% 0.0180 27);
+  --color-warning: oklch(81.00% 0.1200 78);
+  --color-warning-surface: oklch(29.00% 0.0350 119);
+  --color-warning-border: oklch(81.00% 0.1200 78 / 48%);
+  --color-focus: oklch(82.00% 0.0950 158);
+  --color-focus-on-accent: var(--color-accent-ink);
+  --color-focus-on-negative: var(--color-negative-ink);
+  --color-overlay: oklch(7.00% 0.0180 158 / 66%);
+  --color-overlay-solid: oklch(7.00% 0.0180 158);
+  --shadow-card: 0 1px 2px oklch(6% 0.018 158 / 27%);
+  --shadow-dialog: 0 30px 90px oklch(5% 0.018 158 / 52%);
+  --shadow-selected: 0 0 0 1px oklch(78% 0.03 158 / 22%);
+  --shadow-menu: 0 20px 55px oklch(5% 0.018 158 / 42%);
+  --surface-glass: color-mix(in oklab, var(--color-paper-2) 80%, transparent);
+  --surface-glass-strong: color-mix(in oklab, var(--color-surface-raised) 90%, transparent);
+  --surface-hover: color-mix(in oklab, var(--color-paper-3) 72%, var(--color-paper-2));
 }
 
 :root[data-theme="gothic"] {
   color-scheme: dark;
 
-  /* Gothic palette: charcoal paper, burgundy rules, dusty rose accent. */
-  --color-paper: oklch(15.25% 0.0050 345.82);
-  --color-paper-2: oklch(19.37% 0.0090 351.90);
-  --color-paper-3: oklch(23.55% 0.0166 358.61);
-  --color-surface-raised: oklch(21.27% 0.0103 355.94);
-  --color-ink: oklch(93.48% 0.0149 70.88);
-  --color-ink-2: oklch(74.93% 0.0189 39.37);
-  --color-muted: oklch(74.93% 0.0189 39.37);
-  --color-neutral: oklch(74.93% 0.0189 39.37);
-  --color-rule: oklch(35.19% 0.0326 3.85);
-  --color-rule-2: oklch(46.87% 0.0452 358.53);
-  --color-accent: oklch(75.33% 0.0586 3.33);
-  --color-accent-strong: oklch(88.84% 0.0319 5.57);
-  --color-accent-soft: oklch(28.22% 0.0433 1.12);
-  --color-accent-ink: oklch(18.92% 0.0098 158.99);
-  --color-positive: oklch(77.12% 0.0497 149.73);
-  --color-positive-soft: oklch(31.54% 0.0291 150.52);
-  --color-negative: oklch(75.18% 0.0932 13.59);
-  --color-negative-soft: oklch(30.96% 0.0537 7.89);
-  --color-negative-ink: oklch(17.10% 0.0158 26.01);
-  --color-warning: oklch(78.82% 0.0880 79.72);
-  --color-warning-surface: oklch(26.39% 0.0143 48.16);
-  --color-warning-border: oklch(78.82% 0.0880 79.72 / 45%);
-  --color-focus: oklch(77.24% 0.0620 3.00);
-  --color-overlay: oklch(8% 0.0080 350 / 55%);
-  --color-accent-overlay-border: oklch(96% 0.0060 350 / 30%);
-  --color-accent-overlay-hover: oklch(96% 0.0060 350 / 13%);
-
-  --shadow: 0 18px 55px oklch(8% 0.0080 350 / 42%);
-  --shadow-card: 0 8px 30px oklch(8% 0.0080 350 / 18%);
-  --shadow-dialog: 0 30px 90px oklch(8% 0.0080 350 / 52%);
-  --shadow-menu: 0 18px 55px oklch(8% 0.0080 350 / 45%);
-  --shadow-gothic-inset: inset 0 0 0 1px oklch(75.33% 0.0586 3.33 / 3%);
-}
-
-/* Descriptive aliases keep token consumers readable while preserving the
- * semantic names above as the stable runtime contract. */
-:root {
-  --paper: var(--color-paper);
-  --paper-2: var(--color-paper-2);
-  --paper-3: var(--color-paper-3);
-  --ink: var(--color-ink);
-  --ink-2: var(--color-ink-2);
-  --muted: var(--color-muted);
-  --neutral: var(--color-neutral);
-  --rule: var(--color-rule);
-  --rule-2: var(--color-rule-2);
-  --focus-ring: var(--color-focus);
-}
-
-/* Material overrides. Keep the public semantic names above stable while
- * giving the new interface a quieter canvas, layered surfaces and stronger
- * depth cues. The final declarations intentionally win over the legacy
- * compatibility values above. */
-:root {
-  --color-paper: oklch(97.15% 0.0105 88.90);
-  --color-paper-2: oklch(99.35% 0.0055 88.70);
-  --color-paper-3: oklch(94.60% 0.0145 88.85);
-  --color-surface-raised: oklch(99.70% 0.0035 88.50);
-  --color-ink: oklch(24.80% 0.0220 160.50);
-  --color-ink-2: oklch(45.50% 0.0230 160.00);
-  --color-muted: oklch(49.50% 0.0180 160.00);
-  --color-neutral: oklch(49.50% 0.0180 160.00);
-  --color-rule: oklch(88.20% 0.0135 88.60);
-  --color-rule-2: oklch(79.50% 0.0200 88.40);
-  --color-accent: oklch(42.00% 0.1000 160.00);
-  --color-accent-strong: oklch(35.00% 0.0920 160.00);
-  --color-accent-soft: oklch(92.60% 0.0310 159.00);
-  --color-accent-ink: oklch(98.50% 0.0060 88.00);
-  --color-positive: oklch(49.00% 0.1200 157.00);
-  --color-positive-soft: oklch(93.50% 0.0330 157.00);
-  --color-negative: oklch(52.00% 0.1450 27.00);
-  --color-negative-soft: oklch(93.30% 0.0300 27.00);
-  --color-negative-ink: oklch(98.50% 0.0060 88.00);
-  --color-warning: oklch(52.00% 0.1150 70.00);
-  --color-warning-surface: oklch(94.60% 0.0260 82.00);
-  --color-warning-border: oklch(52.00% 0.1150 70.00 / 42%);
-  --color-focus: oklch(49.00% 0.1450 160.00);
-  --color-overlay: oklch(14.00% 0.0200 160.00 / 58%);
-  --color-overlay-ink: var(--color-paper-2);
-  --color-accent-overlay-border: oklch(98% 0.0060 160 / 34%);
-  --color-accent-overlay-hover: oklch(98% 0.0060 160 / 15%);
-
-  --font-weight-semibold: 620;
-  --font-weight-bold: 680;
-  --tracking-display: -0.045em;
-  --tracking-tight: -0.025em;
-
-  --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius: 16px;
-  --radius-card: 18px;
-  --radius-input: 12px;
-  --radius-button: 12px;
-  --control-height: 44px;
-  --icon-button-size: 44px;
-  --sidebar-width: 15.5rem;
-  --sidebar-collapsed-width: 5rem;
-  --content-max: 90rem;
-  --backdrop-blur: 18px;
-
-  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --dur-press: 120ms;
-  --dur-control: 180ms;
-  --dur-page: 260ms;
-  --dur-feedback: 360ms;
-  --dur-micro: var(--dur-press);
-  --dur-short: var(--dur-page);
-  --dur-long: var(--dur-feedback);
-  --dur-loading: 1600ms;
-  --duration-micro: var(--dur-press);
-  --duration-short: var(--dur-control);
-  --duration-long: var(--dur-page);
-
-  --shadow-card: 0 14px 38px oklch(22% 0.025 160 / 7%), 0 2px 8px oklch(22% 0.025 160 / 4%);
-  --shadow-dialog: 0 28px 90px oklch(12% 0.020 160 / 30%), 0 3px 14px oklch(12% 0.020 160 / 10%);
-  --shadow-selected: 0 5px 14px oklch(22% 0.025 160 / 11%), 0 1px 3px oklch(22% 0.025 160 / 7%);
-  --shadow-menu: 0 18px 50px oklch(12% 0.020 160 / 19%), 0 3px 10px oklch(12% 0.020 160 / 9%);
-  --accent-gradient: linear-gradient(135deg, oklch(47% 0.105 160), var(--color-accent));
-  --surface-glass: color-mix(in oklab, var(--color-paper-2) 82%, transparent);
+  /* Gothic: obsidian, restrained wine rules and aged rose. */
+  --color-paper: oklch(15.30% 0.0140 350);
+  --color-paper-2: oklch(19.00% 0.0220 350);
+  --color-paper-3: oklch(23.60% 0.0350 350);
+  --color-surface-raised: oklch(21.40% 0.0280 350);
+  --color-ink: oklch(94.00% 0.0200 70);
+  --color-ink-2: oklch(76.00% 0.0290 39);
+  --color-muted: oklch(71.00% 0.0300 35);
+  --color-neutral: oklch(71.00% 0.0300 35);
+  --color-rule: oklch(34.50% 0.0520 350);
+  --color-rule-2: oklch(46.00% 0.0720 350);
+  --color-accent: oklch(70.00% 0.1350 8);
+  --color-accent-strong: oklch(78.00% 0.1150 8);
+  --color-accent-soft: oklch(28.00% 0.0880 350);
+  --color-accent-ink: oklch(18.00% 0.0240 350);
+  --color-positive: oklch(77.00% 0.0820 150);
+  --color-positive-soft: oklch(30.00% 0.0500 150);
+  --color-negative: oklch(75.00% 0.1350 14);
+  --color-negative-soft: oklch(30.00% 0.0850 8);
+  --color-negative-ink: oklch(18.00% 0.0240 14);
+  --color-warning: oklch(79.00% 0.1200 79);
+  --color-warning-surface: oklch(25.00% 0.0400 48);
+  --color-warning-border: oklch(79.00% 0.1200 79 / 48%);
+  --color-focus: oklch(78.00% 0.1250 8);
+  --color-focus-on-accent: var(--color-accent-ink);
+  --color-focus-on-negative: var(--color-negative-ink);
+  --color-overlay: oklch(6.00% 0.0220 350 / 68%);
+  --color-overlay-solid: oklch(6.00% 0.0220 350);
+  --shadow-card: 0 1px 2px oklch(5% 0.022 350 / 34%);
+  --shadow-dialog: 0 30px 90px oklch(4% 0.022 350 / 58%);
+  --shadow-selected: 0 0 0 1px oklch(76% 0.04 350 / 24%);
+  --shadow-menu: 0 20px 55px oklch(4% 0.022 350 / 48%);
+  --surface-glass: color-mix(in oklab, var(--color-paper-2) 80%, transparent);
   --surface-glass-strong: color-mix(in oklab, var(--color-surface-raised) 90%, transparent);
-  --surface-hover: color-mix(in oklab, var(--color-paper-3) 68%, var(--color-paper-2));
-  --surface-pressed: color-mix(in oklab, var(--color-paper-3) 90%, var(--color-paper-2));
-
-  /* Keep the short aliases live for existing components. */
-  --canvas: var(--color-paper);
-  --surface: var(--color-paper-2);
-  --surface-muted: var(--color-paper-3);
-  --surface-raised: var(--color-surface-raised);
-  --text: var(--color-ink);
-  --text-muted: var(--color-muted);
-  --border: var(--color-rule);
-  --border-strong: var(--color-rule-2);
-  --accent: var(--color-accent);
-  --accent-strong: var(--color-accent-strong);
-  --accent-soft: var(--color-accent-soft);
-  --accent-ink: var(--color-accent-ink);
-  --positive: var(--color-positive);
-  --positive-soft: var(--color-positive-soft);
-  --negative: var(--color-negative);
-  --negative-soft: var(--color-negative-soft);
-  --negative-ink: var(--color-negative-ink);
-  --warning: var(--color-warning);
-  --warning-border: var(--color-warning-border);
-  --warning-surface: var(--color-warning-surface);
-  --focus: var(--color-focus);
-  --overlay: var(--color-overlay);
-}
-
-:root[data-theme="dark"] {
-  --color-paper: oklch(17.80% 0.0180 158.50);
-  --color-paper-2: oklch(21.80% 0.0210 158.00);
-  --color-paper-3: oklch(26.30% 0.0230 158.00);
-  --color-surface-raised: oklch(24.40% 0.0220 158.00);
-  --color-ink: oklch(95.20% 0.0120 145.00);
-  --color-ink-2: oklch(77.00% 0.0250 154.00);
-  --color-muted: oklch(72.00% 0.0230 154.00);
-  --color-neutral: oklch(72.00% 0.0230 154.00);
-  --color-rule: oklch(34.50% 0.0260 158.00);
-  --color-rule-2: oklch(44.50% 0.0310 158.00);
-  --color-accent: oklch(78.00% 0.1050 158.00);
-  --color-accent-strong: oklch(84.00% 0.0900 158.00);
-  --color-accent-soft: oklch(30.50% 0.0600 158.00);
-  --color-accent-ink: oklch(18.00% 0.0180 158.00);
-  --color-positive: oklch(78.00% 0.1150 157.00);
-  --color-positive-soft: oklch(30.00% 0.0610 157.00);
-  --color-negative: oklch(76.00% 0.1250 27.00);
-  --color-negative-soft: oklch(30.00% 0.0600 27.00);
-  --color-negative-ink: oklch(18.00% 0.0180 27.00);
-  --color-warning: oklch(81.00% 0.1250 78.00);
-  --color-warning-surface: oklch(29.00% 0.0350 119.00);
-  --color-warning-border: oklch(81.00% 0.1250 78.00 / 48%);
-  --color-focus: oklch(82.00% 0.1000 158.00);
-  --color-overlay: oklch(5.00% 0.0180 158.00 / 64%);
-  --color-accent-overlay-border: oklch(98% 0.012 158 / 30%);
-  --color-accent-overlay-hover: oklch(98% 0.012 158 / 13%);
-  --shadow-card: 0 18px 48px oklch(5% 0.020 158 / 32%), 0 2px 8px oklch(5% 0.020 158 / 24%);
-  --shadow-dialog: 0 30px 90px oklch(4% 0.020 158 / 58%), 0 3px 14px oklch(4% 0.020 158 / 22%);
-  --shadow-selected: 0 6px 18px oklch(5% 0.020 158 / 30%), 0 1px 3px oklch(5% 0.020 158 / 20%);
-  --shadow-menu: 0 20px 55px oklch(4% 0.020 158 / 46%), 0 3px 10px oklch(4% 0.020 158 / 26%);
-  --accent-gradient: linear-gradient(135deg, oklch(83% 0.105 158), var(--color-accent));
-  --surface-glass: color-mix(in oklab, var(--color-paper-2) 78%, transparent);
-  --surface-glass-strong: color-mix(in oklab, var(--color-surface-raised) 88%, transparent);
   --surface-hover: color-mix(in oklab, var(--color-paper-3) 72%, var(--color-paper-2));
-  --surface-pressed: color-mix(in oklab, var(--color-paper-3) 92%, var(--color-paper-2));
-}
-
-:root[data-theme="gothic"] {
-  --color-paper: oklch(14.30% 0.0140 350.00);
-  --color-paper-2: oklch(18.70% 0.0220 350.00);
-  --color-paper-3: oklch(23.60% 0.0350 350.00);
-  --color-surface-raised: oklch(21.40% 0.0280 350.00);
-  --color-ink: oklch(94.00% 0.0200 70.00);
-  --color-ink-2: oklch(76.00% 0.0290 39.00);
-  --color-muted: oklch(71.00% 0.0300 35.00);
-  --color-neutral: oklch(71.00% 0.0300 35.00);
-  --color-rule: oklch(34.00% 0.0520 350.00);
-  --color-rule-2: oklch(46.00% 0.0720 350.00);
-  --color-accent: oklch(70.00% 0.1450 6.00);
-  --color-accent-strong: oklch(78.00% 0.1250 6.00);
-  --color-accent-soft: oklch(28.00% 0.0880 350.00);
-  --color-accent-ink: oklch(18.00% 0.0240 350.00);
-  --color-positive: oklch(77.00% 0.0820 150.00);
-  --color-positive-soft: oklch(30.00% 0.0500 150.00);
-  --color-negative: oklch(75.00% 0.1400 14.00);
-  --color-negative-soft: oklch(30.00% 0.0850 8.00);
-  --color-negative-ink: oklch(18.00% 0.0240 14.00);
-  --color-warning: oklch(79.00% 0.1250 79.00);
-  --color-warning-surface: oklch(25.00% 0.0400 48.00);
-  --color-warning-border: oklch(79.00% 0.1250 79.00 / 48%);
-  --color-focus: oklch(78.00% 0.1350 6.00);
-  --color-overlay: oklch(5.00% 0.0220 350.00 / 66%);
-  --color-accent-overlay-border: oklch(98% 0.020 6 / 32%);
-  --color-accent-overlay-hover: oklch(98% 0.020 6 / 14%);
-  --shadow-card: 0 18px 48px oklch(5% 0.028 350 / 40%), 0 0 0 1px oklch(75% 0.10 6 / 5%);
-  --shadow-dialog: 0 30px 90px oklch(3% 0.030 350 / 62%), 0 0 0 1px oklch(75% 0.10 6 / 7%);
-  --shadow-selected: 0 6px 18px oklch(5% 0.028 350 / 38%), 0 0 0 1px oklch(75% 0.10 6 / 8%);
-  --shadow-menu: 0 20px 55px oklch(3% 0.028 350 / 50%), 0 0 0 1px oklch(75% 0.10 6 / 6%);
-  --accent-gradient: linear-gradient(135deg, oklch(78% 0.125 6), var(--color-accent));
-  --surface-glass: color-mix(in oklab, var(--color-paper-2) 78%, transparent);
-  --surface-glass-strong: color-mix(in oklab, var(--color-surface-raised) 89%, transparent);
-  --surface-hover: color-mix(in oklab, var(--color-paper-3) 72%, var(--color-paper-2));
-  --surface-pressed: color-mix(in oklab, var(--color-paper-3) 92%, var(--color-paper-2));
 }

@@ -1,5 +1,8 @@
 # Design e experiência
 
+> Hallmark: modern-minimal · Workbench · designed-as-app · navegação N3 · sem
+> footer · sem enriquecimento visual.
+
 Este é o guia de implementação do sistema visual do `[c]ash`. O produto é uma
 ferramenta pessoal de finanças, local-first, que deve transmitir precisão sem
 parecer um painel de controle. O acabamento é minimalista e premium: pouca
@@ -13,22 +16,23 @@ antes de aprender o modelo de dados:
 
 | Grupo | Destinos |
 | --- | --- |
-| Visão | Visão geral |
-| Atividade | Movimentações |
+| Principal | Visão geral; Movimentações |
 | Patrimônio | Contas; Cartões e faturas |
 | Planejamento | Despesas fixas; Orçamento; Metas |
 | Organização | Categorias |
-| Sistema | Configurações |
+| Configurações (rodapé) | Configurações |
 
 No rail expandido, o grupo é um rótulo de seção e o destino ativo possui um
 tratamento de seleção contínuo. No rail recolhido, os ícones permanecem
 nomeados por tooltip e acessibilidade. Abaixo da largura confortável, o grupo
 de maior frequência vira dock inferior e os destinos restantes continuam
-disponíveis em menu.
+disponíveis em menu. Configurações fica no rodapé do rail; o produto não tem
+footer de conteúdo.
 
-O cabeçalho do shell tem título único, contexto de período quando aplicável,
-controles locais e `+ Nova movimentação`. A ação global abre o lançamento
-rápido sem navegar para longe do contexto atual.
+O cabeçalho do shell tem título único, contexto da tela, controles locais e
+`+ Nova movimentação`. Ação e filtros não incluem seletor de período: navegação
+mensal/anual está fora deste escopo. A ação global abre o lançamento rápido
+sem navegar para longe do contexto atual.
 
 ## Contrato de layout
 
@@ -95,8 +99,9 @@ setas, Home/End, Enter, Escape e Tab.
 Motion deve comunicar origem, hierarquia ou conclusão:
 
 - 120 ms para pressionar, alternar e feedback mínimo;
-- 220 ms para entrada/saída de menu e sheet;
-- até 420 ms para mudança de contexto;
+- 180 ms para controles e menus;
+- 260 ms para entrada/saída de página e sheet;
+- 360 ms para feedback amplo;
 - transform e opacity como propriedades principais;
 - sem contagem animada de valores ou movimento ornamental.
 

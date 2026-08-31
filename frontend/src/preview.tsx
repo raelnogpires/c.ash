@@ -1,5 +1,6 @@
 import { useMemo, useState, type ComponentProps } from 'react'
 import { createRoot } from 'react-dom/client'
+import '@fontsource-variable/geist'
 import '@fontsource-variable/inter'
 import App from './App'
 import './styles.css'
@@ -310,19 +311,19 @@ function Preview() {
   const changeScenario = (value: PreviewScenario) => { setScenario(value); updateQuery(value, theme) }
   const changeTheme = (value: Theme) => { setTheme(value); updateQuery(scenario, value) }
   return <>
-    {controlsVisible && <div className="preview-controls" role="region" aria-label="Controles do preview" style={{ position: 'fixed', top: 12, right: 12, zIndex: 100, width: 'min(26rem, calc(100vw - 24px))', padding: 10, display: 'grid', gap: 8, border: '1px solid color-mix(in srgb, currentColor 18%, transparent)', borderRadius: 12, background: 'color-mix(in srgb, Canvas 88%, transparent)', color: 'CanvasText', boxShadow: '0 12px 32px color-mix(in srgb, CanvasText 14%, transparent)', backdropFilter: 'blur(16px)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-        <strong style={{ fontSize: 12, letterSpacing: '.04em' }}>[c]ash · preview</strong>
-        <span style={{ fontSize: 11, opacity: .64 }}>local / mock</span>
+    {controlsVisible && <div className="preview-controls" role="region" aria-label="Controles do preview">
+      <div className="preview-controls__heading">
+        <strong>[c]ash · preview</strong>
+        <span>local / mock</span>
       </div>
-      <label style={{ display: 'grid', gap: 4, fontSize: 11, fontWeight: 700 }}>
+      <label className="preview-controls__scenario">
         Cenário
-        <select value={scenario} onChange={event => changeScenario(event.target.value as PreviewScenario)} style={{ minHeight: 34, padding: '0 8px', borderRadius: 8, border: '1px solid color-mix(in srgb, currentColor 18%, transparent)', background: 'Canvas', color: 'CanvasText' }}>
+        <select value={scenario} onChange={event => changeScenario(event.target.value as PreviewScenario)}>
           {scenarioOptions.map(option => <option value={option.value} key={option.value}>{option.label} — {option.hint}</option>)}
         </select>
       </label>
-      <div role="group" aria-label="Tema do preview" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {themes.map(option => <button key={option.value} type="button" aria-pressed={theme === option.value} onClick={() => changeTheme(option.value)} style={{ minHeight: 32, padding: '0 9px', borderRadius: 999, border: '1px solid color-mix(in srgb, currentColor 18%, transparent)', background: theme === option.value ? 'CanvasText' : 'transparent', color: theme === option.value ? 'Canvas' : 'CanvasText', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{option.label}</button>)}
+      <div className="preview-controls__themes" role="group" aria-label="Tema do preview">
+        {themes.map(option => <button key={option.value} type="button" aria-pressed={theme === option.value} onClick={() => changeTheme(option.value)}>{option.label}</button>)}
       </div>
     </div>}
     <App key={`${scenario}-${theme}`} api={api}/>

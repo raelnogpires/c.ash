@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import App from './App'
@@ -82,9 +82,25 @@ test('verifica atualização manualmente nas configurações',async()=>{const ap
 
 test('agrupa, recolhe e expande a navegação sem perder seus destinos',async()=>{const user=userEvent.setup();render(<App api={mockAPI()}/>);const navigation=await screen.findByRole('navigation',{name:'Principal'});for(const label of ['Principal','Patrimônio','Planejamento','Organização'])expect(within(navigation).getByRole('region',{name:label})).toBeInTheDocument();const toggle=screen.getByRole('button',{name:'Recolher navegação'});expect(toggle.querySelector('svg.icon')).toHaveAttribute('aria-hidden','true');expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();await user.click(toggle);expect(toggle).toHaveAccessibleName('Expandir navegação');expect(toggle.querySelector('svg.icon')).toHaveAttribute('aria-hidden','true');expect(screen.getByRole('button',{name:'Contas'})).toBeInTheDocument();await user.click(toggle);expect(toggle).toHaveAccessibleName('Recolher navegação')})
 
+test('oferece dock compacto com menu Mais navegável por teclado',async()=>{
+  Object.defineProperty(window,'matchMedia',{configurable:true,writable:true,value:vi.fn().mockReturnValue({matches:true,addEventListener:vi.fn(),removeEventListener:vi.fn()})})
+  const user=userEvent.setup();render(<App api={mockAPI(accountData)}/>);
+  const compact=await screen.findByRole('complementary',{name:'Navegação compacta'});
+  const navigation=within(compact).getByRole('navigation',{name:'Principal'});
+  for(const label of ['Visão','Atividade','Contas','Orçamento','Mais'])expect(within(navigation).getByRole('button',{name:label})).toBeInTheDocument();
+  const more=within(navigation).getByRole('button',{name:'Mais'});
+  await user.click(more);
+  const menu=screen.getByRole('menu',{name:'Mais destinos'}),items=within(menu).getAllByRole('menuitem');
+  await waitFor(()=>expect(items[0]).toHaveFocus());
+  await user.keyboard('{End}');expect(items.at(-1)).toHaveFocus();
+  await user.keyboard('{Escape}');expect(screen.queryByRole('menu')).not.toBeInTheDocument();await waitFor(()=>expect(more).toHaveFocus());
+  await user.click(more);expect(screen.getByRole('menu')).toBeInTheDocument();
+  await user.click(screen.getByRole('heading',{name:'Visão geral'}));expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+})
+
 test('abre o compositor global em um sheet e devolve o foco',async()=>{const user=userEvent.setup();render(<App api={mockAPI(accountData)}/>);await user.click(await screen.findByRole('button',{name:'Metas'}));const trigger=screen.getByRole('button',{name:'Nova movimentação'});await user.click(trigger);const dialog=screen.getByRole('dialog');expect(dialog).toHaveClass('dialog--sheet');expect(within(dialog).getByText('Mais detalhes')).toBeInTheDocument();await user.keyboard('{Escape}');await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());await waitFor(()=>expect(trigger).toHaveFocus())})
 
-test('organiza configurações em seções navegáveis',async()=>{render(<App api={mockAPI(accountData)}/>);await userEvent.click(await screen.findByRole('button',{name:'Configurações'}));const index=screen.getByRole('navigation',{name:'Seções de configurações'});for(const label of ['Aparência','Dados e backup','Segurança','Atualizações','Sobre'])expect(within(index).getByRole('link',{name:label})).toBeInTheDocument()})
+test('organiza configurações em seções navegáveis',async()=>{render(<App api={mockAPI(accountData)}/>);await userEvent.click(await screen.findByRole('button',{name:'Configurações'}));const index=screen.getByRole('navigation',{name:'Seções de configurações'});const links=[['Aparência','#settings-appearance'],['Dados e backup','#settings-data'],['Segurança','#settings-security'],['Atualizações','#settings-updates'],['Sobre','#settings-about']] as const;for(const [label,href] of links)expect(within(index).getByRole('link',{name:label})).toHaveAttribute('href',href)})
 
 test('mantém um título principal por tela e remove rótulos repetidos',async()=>{
   const user=userEvent.setup();render(<App api={mockAPI(accountData)}/>);
@@ -105,7 +121,7 @@ test('mantém um título principal por tela e remove rótulos repetidos',async()
   await user.click(screen.getByRole('button',{name:'Configurações'}));
   expect(screen.getAllByRole('heading',{level:1})).toHaveLength(1);
   expect(screen.getByRole('heading',{level:1,name:'Configurações'})).toBeInTheDocument();
-  expect(screen.getByRole('heading',{name:'Escolha a atmosfera'})).toBeInTheDocument();
+  expect(screen.getByRole('heading',{name:'Tema do aplicativo'})).toBeInTheDocument();
   expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
 })
 
@@ -158,6 +174,24 @@ test('registra transferência com origem e destino pesquisáveis',async()=>{cons
 test('envia subcategoria, tags, recorrência e divisões avançadas',async()=>{const data:BootstrapData={...accountData,categories:[{id:'food',name:'Alimentação',kind:'expense'},{id:'bills',name:'Contas',kind:'expense'}]};const api=mockAPI(data);render(<App api={api}/>);await userEvent.click(await screen.findByRole('button',{name:/Nova movimentação/}));await userEvent.type(screen.getByRole('textbox',{name:'Descrição'}),'Casa');await userEvent.type(screen.getByRole('textbox',{name:/Valor$/}),'12,90');await userEvent.click(screen.getByText('Mais detalhes'));await userEvent.type(screen.getByRole('textbox',{name:/Subcategoria/}),'Mercado');await userEvent.type(screen.getByRole('textbox',{name:/Tags/}),'Casa, urgente');await userEvent.click(screen.getByRole('checkbox',{name:'Repetir mensalmente'}));await userEvent.click(screen.getByRole('checkbox',{name:'Dividir entre categorias'}));const selects=screen.getAllByRole('combobox').filter(element=>element instanceof HTMLSelectElement);await userEvent.selectOptions(selects.at(-2)!, 'food');await userEvent.selectOptions(selects.at(-1)!, 'bills');await userEvent.type(screen.getByRole('textbox',{name:'Valor da divisão 1'}),'5,00');await userEvent.type(screen.getByRole('textbox',{name:'Valor da divisão 2'}),'7,90');await userEvent.click(screen.getByRole('button',{name:'Registrar'}));await waitFor(()=>expect(api.CreateTransaction).toHaveBeenCalledWith(expect.objectContaining({subcategoryName:'Mercado',tags:['Casa','urgente'],monthlyRecurrence:true,splits:[{categoryId:'food',subcategoryName:'',amountCents:500},{categoryId:'bills',subcategoryName:'',amountCents:790}]})))})
 
 test('combina filtros, mostra chips e limpa a busca',async()=>{const api=mockAPI(transactionData);api.SearchTransactions.mockResolvedValue([]);render(<App api={api}/>);await userEvent.click(await screen.findByRole('button',{name:'Movimentações'}));await userEvent.type(screen.getByRole('textbox',{name:'Buscar'}),'mercado');await userEvent.selectOptions(screen.getByRole('combobox',{name:'Status'}),'pending');await userEvent.type(screen.getByRole('textbox',{name:'Tag'}),'casa');await userEvent.click(screen.getByRole('button',{name:'Aplicar filtros'}));await waitFor(()=>expect(api.SearchTransactions).toHaveBeenCalledWith(expect.objectContaining({text:'mercado',status:'pending',tag:'casa'})));expect(screen.getByLabelText('Filtros ativos')).toBeInTheDocument();expect(screen.getByRole('heading',{name:'Nenhuma movimentação encontrada'})).toBeInTheDocument();await userEvent.click(screen.getByRole('button',{name:'Limpar todos'}));expect(api.SearchTransactions).toHaveBeenLastCalledWith({status:'active'})})
+
+test('aplica filtros avançados em sheet e devolve o foco',async()=>{
+  const api=mockAPI(transactionData);api.SearchTransactions.mockResolvedValue([]);const user=userEvent.setup();render(<App api={api}/>);
+  await user.click(await screen.findByRole('button',{name:'Movimentações'}));
+  const trigger=screen.getByRole('button',{name:'Mais filtros'});await user.click(trigger);
+  const dialog=screen.getByRole('dialog');expect(dialog).toHaveClass('dialog--sheet','filter-sheet');
+  fireEvent.change(within(dialog).getByLabelText('De'),{target:{value:'2026-08-01'}});
+  fireEvent.change(within(dialog).getByLabelText('Até'),{target:{value:'2026-08-31'}});
+  await user.selectOptions(within(dialog).getByRole('combobox',{name:'Categoria'}),'food');
+  await user.type(within(dialog).getByRole('textbox',{name:/Valor mínimo/}),'10,00');
+  await user.type(within(dialog).getByRole('textbox',{name:/Valor máximo/}),'50,00');
+  await user.selectOptions(within(dialog).getByRole('combobox',{name:'Recorrência'}),'recurring');
+  await user.click(within(dialog).getByRole('button',{name:'Aplicar filtros'}));
+  await waitFor(()=>expect(api.SearchTransactions).toHaveBeenLastCalledWith(expect.objectContaining({startDate:'2026-08-01',endDate:'2026-08-31',categoryId:'food',minimumAmountCents:1000,maximumAmountCents:5000,recurrence:'recurring'})));
+  await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());await waitFor(()=>expect(trigger).toHaveFocus());
+})
+
+test('mostra falhas de busca na aba ativa',async()=>{const api=mockAPI(transactionData);api.SearchTransactions.mockRejectedValue(new Error('Não foi possível filtrar.'));render(<App api={api}/>);await userEvent.click(await screen.findByRole('button',{name:'Movimentações'}));await userEvent.click(screen.getByRole('button',{name:'Aplicar filtros'}));expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível filtrar.');expect(screen.getByRole('tab',{name:'Ativas'})).toHaveAttribute('aria-selected','true')})
 
 test('localiza e remove filtros ativos individualmente',async()=>{const api=mockAPI(transactionData);api.SearchTransactions.mockResolvedValue([]);render(<App api={api}/>);await userEvent.click(await screen.findByRole('button',{name:'Movimentações'}));await userEvent.type(screen.getByRole('textbox',{name:'Buscar'}),'mercado');await userEvent.selectOptions(screen.getByRole('combobox',{name:'Status'}),'pending');await userEvent.click(screen.getByRole('button',{name:'Aplicar filtros'}));expect(await screen.findByRole('button',{name:'Remover filtro Busca'})).toHaveTextContent('Busca: mercado');expect(screen.getByRole('button',{name:'Remover filtro Status'})).toHaveTextContent('Status: Pendentes');await userEvent.click(screen.getByRole('button',{name:'Remover filtro Busca'}));await waitFor(()=>expect(api.SearchTransactions).toHaveBeenLastCalledWith(expect.not.objectContaining({text:'mercado'})))})
 

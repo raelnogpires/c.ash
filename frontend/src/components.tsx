@@ -52,15 +52,61 @@ export function Modal({ children, onClose, busy = false, dismissible = true, lab
     if (!dialog) return
     const previousFocus = previousFocusRef.current
     const supportsNativeDialog = typeof dialog.showModal === 'function'
-    if (supportsNativeDialog) dialog.showModal()
-    else dialog.setAttribute('open', '')
+    const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const inerted: Array<{ element: HTMLElement; wasInert: boolean }> = []
+    const previousRootOverflow = document.documentElement.style.overflow
+    const previousBodyOverflow = document.body.style.overflow
+    const previousBodyPadding = document.body.style.paddingInlineEnd
+    const scrollbarGap = Math.max(0, window.innerWidth - document.documentElement.clientWidth)
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    if (scrollbarGap > 0) document.body.style.paddingInlineEnd = `${scrollbarGap}px`
+
+    if (supportsNativeDialog) {
+      dialog.showModal()
+    } else {
+      dialog.setAttribute('open', '')
+      let current: HTMLElement = dialog
+      while (current.parentElement) {
+        const parent = current.parentElement
+        for (const sibling of Array.from(parent.children)) {
+          if (sibling === current || !(sibling instanceof HTMLElement)) continue
+          inerted.push({ element: sibling, wasInert: sibling.inert })
+          sibling.inert = true
+        }
+        current = parent
+        if (current === document.body) break
+      }
+    }
     const escapeFallback = (event: KeyboardEvent) => {
-      if (!supportsNativeDialog && event.key === 'Escape' && !busyRef.current && dismissibleRef.current) {
-        event.preventDefault()
-        closeRef.current()
+      if (supportsNativeDialog) return
+      if (event.key === 'Escape' && !busyRef.current && dismissibleRef.current) {
+          event.preventDefault()
+          closeRef.current()
+          return
+      }
+      if (event.key === 'Tab') {
+        const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
+          .filter((element) => !element.inert && element.getAttribute('aria-hidden') !== 'true')
+        const first = focusable[0] ?? dialog
+        const last = focusable.at(-1) ?? dialog
+        if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first.focus()
+        }
+      }
+    }
+    const containFallbackFocus = (event: FocusEvent) => {
+      if (!supportsNativeDialog && event.target instanceof Node && !dialog.contains(event.target)) {
+        const first = dialog.querySelector<HTMLElement>(focusableSelector)
+        ;(first ?? dialog).focus()
       }
     }
     window.addEventListener('keydown', escapeFallback)
+    document.addEventListener('focusin', containFallbackFocus)
     const focusFrame = requestAnimationFrame(() => {
       const preferred = dialog.querySelector<HTMLElement>('[autofocus], [data-dialog-initial]')
       const firstInteractive = dialog.querySelector<HTMLElement>('input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), .button:not([disabled]), button:not(.icon-button):not([disabled])')
@@ -69,8 +115,13 @@ export function Modal({ children, onClose, busy = false, dismissible = true, lab
     return () => {
       cancelAnimationFrame(focusFrame)
       window.removeEventListener('keydown', escapeFallback)
+      document.removeEventListener('focusin', containFallbackFocus)
       if (typeof dialog.close === 'function' && dialog.open) dialog.close()
       else dialog.removeAttribute('open')
+      for (const { element, wasInert } of inerted) element.inert = wasInert
+      document.documentElement.style.overflow = previousRootOverflow
+      document.body.style.overflow = previousBodyOverflow
+      document.body.style.paddingInlineEnd = previousBodyPadding
       requestAnimationFrame(() => {
         if (previousFocus?.isConnected) previousFocus.focus()
       })
@@ -167,7 +218,7 @@ export function AccountActions({ account, onEdit, onAdjust, onRemove }: { accoun
   const [open, setOpen] = useState(false), button = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null)
   useEffect(() => { if (open) menu.current?.querySelector<HTMLButtonElement>('button')?.focus() }, [open])
   const close = () => { setOpen(false); requestAnimationFrame(() => button.current?.focus()) }
-  return <div className="action-menu account-card__actions" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false) }}>
+  return <div className="action-menu account-list__actions" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false) }}>
     <button ref={button} type="button" className="icon-button" aria-label={`Mais ações para ${account.name}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(value => !value)}><Icon name="ellipsis"/></button>
     {open && <div ref={menu} className="action-menu__panel" role="menu" onKeyDown={(event) => { if(event.key==='Escape'){event.preventDefault();close();return}if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const items=Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button'));const index=items.indexOf(document.activeElement as HTMLButtonElement);items[(index+(event.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus()} }}>
       <button type="button" role="menuitem" onClick={() => { setOpen(false); if(button.current) onEdit(account, button.current) }}>Editar</button>
@@ -180,7 +231,7 @@ export function AccountActions({ account, onEdit, onAdjust, onRemove }: { accoun
 export function TransactionList({ transactions, empty, onEdit, onRemove, onRestore, onDeletePermanently, busyTransactionId, label = 'Movimentações' }: { transactions: Transaction[]; empty?: ReactNode; onEdit?(tx: Transaction, trigger: HTMLElement): void; onRemove?(tx: Transaction, trigger: HTMLElement): void; onRestore?(tx: Transaction, trigger: HTMLElement): void; onDeletePermanently?(tx: Transaction, trigger: HTMLElement): void; busyTransactionId?: string; label?: string }) {
   if (!transactions.length) return <>{empty}</>
   return <ul className="transaction-list" aria-label={label}>
-    {transactions.map((tx) => <li key={tx.id} className="transaction-row">
+    {transactions.map((tx) => <li key={tx.id} className={`transaction-row${onRestore || onDeletePermanently ? ' transaction-row--trash' : ''}`}>
       <span className={`transaction-row__glyph ${tx.kind}`} aria-hidden="true"><Icon name={tx.kind === 'income' ? 'arrowUpRight' : tx.kind === 'expense' ? 'arrowDownRight' : 'arrowRightLeft'}/></span>
       <span className="transaction-row__main"><span className="transaction-row__title"><strong>{tx.description}</strong>{tx.automaticImport && <span className="import-badge">Importação automática</span>}{tx.invoicePaymentId&&<span className="import-badge">Pagamento de fatura</span>}{tx.origin==='adjustment'&&<span className="import-badge">Ajuste de saldo</span>}{(tx.installmentCount??1)>1&&<span className="import-badge">{tx.installmentCount}x</span>}</span><small>{tx.kind === 'transfer' ? `${tx.accountName} para ${tx.destinationAccountName}` : `${tx.accountName}${tx.categoryName ? ` · ${tx.categoryName}` : ''}`}</small>{tx.deletedAt && <small>Removida em {formatDeletedAt(tx.deletedAt)}</small>}</span>
       <span className="transaction-row__date">{formatDate(tx.occurrenceDate)}</span>

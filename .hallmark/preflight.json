@@ -1,10 +1,12 @@
 {
-  "date": "2026-08-20",
+  "date": "2026-08-31",
   "framework": "React 19 + Vite 7 + Wails 2",
-  "font_stack": "bundled Inter Variable for display, body, and financial values",
-  "palette": "semantic CSS custom properties for light, dark, and gothic themes",
-  "motion": "motion-cut; no animation library",
-  "spacing": "existing desktop workbench scale",
+  "font_stack": "bundled Geist Variable for display and Inter Variable for body and financial values",
+  "palette": "semantic OKLCH CSS custom properties for fog-and-forest light, graphite-and-mint dark, and obsidian-and-aged-rose gothic themes",
+  "motion": "native CSS and Element.animate() with 120/180/260/360ms tiers and reduced-motion fallbacks; no animation library",
+  "spacing": "4px desktop-first workbench scale with 44px minimum targets",
   "icon_system": "bundled Lucide React with semantic names and 1.8 stroke",
-  "preserved": ["sidebar", "three themes", "960x640 minimum", "local-first interaction model"]
+  "preserved": ["financial rules", "Wails contracts", "local data", "three themes", "960x640 minimum", "local-first interaction model"],
+  "macrostructure": "Workbench with grouped N3 sidebar, contextual toolbar, responsive dock, and lateral sheets",
+  "responsive_validation": "84 scenario/theme/viewport combinations without horizontal overflow"
 }

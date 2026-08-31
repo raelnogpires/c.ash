@@ -1,5 +1,8 @@
 # Wireframes do sistema premium
 
+> Hallmark: modern-minimal · Workbench · designed-as-app · navegação N3 · sem
+> footer · sem enriquecimento visual.
+
 Estes wireframes registram intenção, ordem de leitura e comportamento. Eles
 partem da janela mínima de `960 × 640 px` e escalam para a referência de
 `1180 × 760 px`. A geometria é a mesma nos temas claro, escuro e gótico; mudam
@@ -9,13 +12,12 @@ apenas superfícies, bordas, sombras e cor semântica.
 
 ```text
 ┌────────────── 248 px ─────────────┬──────────────────────────────────────────┐
-│ [c]ash                            │ Visão geral                 [⌄ ago/2026]│
+│ [c]ash                            │ Visão geral                         [+]│
 │                                   │                              [+ Nova]    │
-│ VISÃO                             │ Olá, Lia                                  │
+│ PRINCIPAL                         │ Olá, Lia                                  │
 │  ◉ Visão geral                    │                                          │
-│                                   │ conteúdo da tela                         │
-│ ATIVIDADE                         │                                          │
 │  ↕ Movimentações                  │                                          │
+│                                   │ conteúdo da tela                         │
 │                                   │                                          │
 │ PATRIMÔNIO                        │                                          │
 │  ◫ Contas                         │                                          │
@@ -29,7 +31,7 @@ apenas superfícies, bordas, sombras e cor semântica.
 │ ORGANIZAÇÃO                       │                                          │
 │  ⋮ Categorias                     │                                          │
 │                                   │                                          │
-│ SISTEMA                           │                                          │
+│ CONFIGURAÇÕES · RODAPÉ            │                                          │
 │  ⚙ Configurações                 │ Lia · local                              │
 └───────────────────────────────────┴──────────────────────────────────────────┘
 ```
@@ -43,7 +45,7 @@ vira dock inferior e o menu guarda os destinos menos frequentes.
 
 ```text
 ┌────────────────────────────── conteúdo ──────────────────────────────────────┐
-│ Visão geral                                      agosto 2026  [olho] [+ Nova] │
+│ Visão geral                                             agora  [olho] [+ Nova]│
 │ Lia, este é o seu espaço                                                       │
 │                                                                                │
 │  Disponível com segurança                                                      │

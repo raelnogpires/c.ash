@@ -1,5 +1,8 @@
 # Sistema visual — [c]ash
 
+> Hallmark: modern-minimal · Workbench · designed-as-app · navegação N3 · sem
+> footer · sem enriquecimento visual.
+
 Este documento é a referência de produto para o redesign do `[c]ash`: uma
 ferramenta pessoal de finanças, local-first, silenciosa e precisa. A direção é
 minimalista e premium, com a clareza espacial de um utilitário de plataforma,
@@ -26,14 +29,15 @@ quando ela está recolhida.
 
 | Grupo | Destinos | Pergunta respondida |
 | --- | --- | --- |
-| **Visão** | Visão geral | Como está meu dinheiro hoje? |
-| **Atividade** | Movimentações | O que entrou, saiu ou foi transferido? |
+| **Principal** | Visão geral; Movimentações | Como está meu dinheiro e o que mudou? |
 | **Patrimônio** | Contas; Cartões e faturas | Onde está o dinheiro e o que vence? |
 | **Planejamento** | Despesas fixas; Orçamento; Metas | O que preciso prever e priorizar? |
 | **Organização** | Categorias | Como quero classificar meus registros? |
-| **Sistema** | Configurações | Como ajusto privacidade, dados e aparência? |
+| **Configurações (rodapé)** | Configurações | Como ajusto privacidade, dados e aparência? |
 
-O rail mostra `[c]ash`, o grupo, o destino ativo e o perfil local. O estado
+O rail mostra `[c]ash`, os grupos Principal, Patrimônio, Planejamento e
+Organização, o destino ativo e o perfil local. Configurações fica no rodapé do
+rail; não há footer de conteúdo. O estado
 recolhido mantém ícone, `aria-label`, tooltip e foco visível; nunca depende só
 de cor. Em larguras estreitas, o mesmo conjunto vira um dock inferior com os
 destinos de maior frequência e um menu para os demais.
@@ -45,8 +49,8 @@ destinos de maior frequência e um menu para os demais.
 - **Rail:** 248 px expandido, 80 px recolhido.
 - **Conteúdo:** coluna fluida, largura máxima de leitura de aproximadamente
   1248 px, com gutters que diminuem gradualmente até a largura mínima.
-- **Cabeçalho:** título e contexto à esquerda; seletor de período, filtros e
-  ação global à direita.
+- **Cabeçalho:** título e contexto à esquerda; filtros locais e ação global à
+  direita. Navegação mensal/anual não faz parte deste escopo.
 - **Ação global:** `+ Nova movimentação` fica no cabeçalho do shell e abre uma
   sheet de lançamento rápido sem apagar o contexto da tela.
 
@@ -102,9 +106,10 @@ perdido ao validar. Erros ficam junto ao campo e também em um resumo acessível
 
 ## Tipografia, ícones e números
 
-- Inter Variable embutida é usada em títulos, corpo e valores.
-- Títulos são romanos, com peso e espaço para criar hierarquia; não há mistura
-  ornamental de famílias.
+- Geist Variable embutida é usada no display e no wordmark; Inter Variable fica
+  no corpo, controles e valores financeiros.
+- Títulos são romanos, com peso e espaço para criar hierarquia; a dupla é
+  funcional, não ornamental.
 - Valores financeiros usam algarismos tabulares, alinhamento consistente e
   sinal textual (`+`, `−`) além de cor.
 - Lucide é a família única de ícones, com traço consistente e nome acessível em
@@ -137,9 +142,10 @@ neutro indica transferência. Cada significado também tem rótulo, sinal ou
 Motion é funcional: orienta a origem de uma sheet, confirma uma mudança ou
 mostra o resultado de uma ação reversível.
 
-- microinteração: `120 ms`;
-- entrada/saída curta: `220 ms`;
-- transição de contexto: até `420 ms`;
+- pressão e microinteração: `120 ms`;
+- controles e menus: `180 ms`;
+- páginas e sheets: `260 ms`;
+- feedback amplo: `360 ms`;
 - easing único de saída suave, com transform e opacity como propriedades
   preferenciais;
 - sem contagem animada de dinheiro, parallax ou movimento ornamental;

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type PropsWithChildren, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PropsWithChildren, type ReactNode } from 'react'
 import { Button, Icon, type IconName } from './components'
 
 export type AppView = 'dashboard' | 'accounts' | 'cards' | 'transactions' | 'fixedExpenses' | 'categories' | 'budget' | 'goals' | 'settings'
@@ -39,6 +39,9 @@ export function Sidebar({ groups, active, collapsed, displayName, onNavigate, on
 }) {
   const compact = useCompactNavigation()
   const [moreOpen, setMoreOpen] = useState(false)
+  const moreButton = useRef<HTMLButtonElement>(null)
+  const moreMenu = useRef<HTMLDivElement>(null)
+  const moreMenuId = useId()
   const primaryIds: AppView[] = ['dashboard', 'transactions', 'accounts', 'budget']
   const allItems = groups.flatMap(group => group.items)
   const primaryItems = primaryIds.map(id => allItems.find(item => item.id === id)).filter((item): item is NavigationItem => Boolean(item))
@@ -49,15 +52,53 @@ export function Sidebar({ groups, active, collapsed, displayName, onNavigate, on
   }
   const toggleLabel = collapsed ? 'Expandir navegação' : 'Recolher navegação'
 
+  useEffect(() => {
+    if (!moreOpen) return
+    moreMenu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus()
+    const closeFromOutside = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!moreMenu.current?.contains(target) && !moreButton.current?.contains(target)) setMoreOpen(false)
+    }
+    const closeFromEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setMoreOpen(false)
+      requestAnimationFrame(() => moreButton.current?.focus())
+    }
+    document.addEventListener('pointerdown', closeFromOutside)
+    document.addEventListener('keydown', closeFromEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeFromOutside)
+      document.removeEventListener('keydown', closeFromEscape)
+    }
+  }, [moreOpen])
+
+  useEffect(() => {
+    if (!compact) setMoreOpen(false)
+  }, [compact])
+
+  const moveInMoreMenu = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+    const current = items.indexOf(document.activeElement as HTMLButtonElement)
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
+    items[next]?.focus()
+  }
+
   if (compact) {
     return <aside className="mobile-navigation" aria-label="Navegação compacta">
-      {moreOpen && <div className="mobile-more" role="menu" aria-label="Mais destinos">
-        {moreItems.map(item => <button key={item.id} type="button" role="menuitem" className={active === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><Icon name={item.icon}/><span>{item.label}</span></button>)}
-        <button type="button" role="menuitem" className={active === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}><Icon name="palette"/><span>Configurações</span></button>
+      {moreOpen && <div ref={moreMenu} id={moreMenuId} className="mobile-more" role="menu" aria-label="Mais destinos" onKeyDown={moveInMoreMenu}>
+        {moreItems.map(item => <button key={item.id} type="button" role="menuitem" className={active === item.id ? 'active' : ''} aria-current={active === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon name={item.icon}/><span>{item.label}</span></button>)}
+        <button type="button" role="menuitem" className={active === 'settings' ? 'active' : ''} aria-current={active === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="palette"/><span>Configurações</span></button>
       </div>}
       <nav aria-label="Principal">
-        {primaryItems.map(item => <button key={item.id} type="button" className={active === item.id ? 'active' : ''} aria-current={active === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon name={item.icon}/><span>{item.label === 'Movimentações' ? 'Atividade' : item.label}</span></button>)}
-        <button type="button" className={moreOpen || moreItems.some(item => item.id === active) || active === 'settings' ? 'active' : ''} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><Icon name="ellipsis"/><span>Mais</span></button>
+        {primaryItems.map(item => {
+          const label = item.id === 'dashboard' ? 'Visão' : item.label === 'Movimentações' ? 'Atividade' : item.label
+          const compactLabel = item.id === 'transactions' ? 'Fluxo' : item.id === 'budget' ? 'Plano' : label
+          return <button key={item.id} type="button" className={active === item.id ? 'active' : ''} aria-label={label} aria-current={active === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon name={item.icon}/><span className="mobile-label mobile-label--default" aria-hidden="true">{label}</span>{compactLabel !== label && <span className="mobile-label mobile-label--compact" aria-hidden="true">{compactLabel}</span>}</button>
+        })}
+        <button ref={moreButton} type="button" className={moreOpen || moreItems.some(item => item.id === active) || active === 'settings' ? 'active' : ''} aria-haspopup="menu" aria-controls={moreMenuId} aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><Icon name="ellipsis"/><span>Mais</span></button>
       </nav>
     </aside>
   }
@@ -70,11 +111,11 @@ export function Sidebar({ groups, active, collapsed, displayName, onNavigate, on
     <nav id="primary-navigation" className="sidebar__nav" aria-label="Principal">
       {groups.map(group => <section className="nav-group" aria-label={group.label} key={group.label}>
         <p className="nav-group__label" aria-hidden={collapsed}>{group.label}</p>
-        {group.items.map(item => <button key={item.id} type="button" className={active === item.id ? 'active' : ''} aria-label={item.label} title={collapsed ? item.label : undefined} aria-current={active === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon name={item.icon}/><span>{item.label}</span></button>)}
+        {group.items.map(item => <button key={item.id} type="button" className={active === item.id ? 'active' : ''} aria-label={item.label} aria-current={active === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon name={item.icon}/><span>{item.label}</span>{collapsed && <span className="sidebar__tooltip" aria-hidden="true">{item.label}</span>}</button>)}
       </section>)}
     </nav>
     <div className="sidebar__footer">
-      <button type="button" className={`sidebar__settings${active === 'settings' ? ' active' : ''}`} aria-label="Configurações" title={collapsed ? 'Configurações' : undefined} aria-current={active === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="palette"/><span>Configurações</span></button>
+      <button type="button" className={`sidebar__settings${active === 'settings' ? ' active' : ''}`} aria-label="Configurações" aria-current={active === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="palette"/><span>Configurações</span>{collapsed && <span className="sidebar__tooltip" aria-hidden="true">Configurações</span>}</button>
       <div className="sidebar__profile">
         <span className="avatar" aria-hidden="true">{displayName?.[0]?.toUpperCase() || 'C'}</span>
         <span><strong>{displayName || 'Meu espaço'}</strong><small>Privado e local</small></span>

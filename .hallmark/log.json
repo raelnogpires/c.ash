@@ -36,5 +36,13 @@
     "theme": "preserved light/dark/gothic: parchment and forest, green-black and mint, charcoal and dusty rose",
     "enrichment": "none",
     "brief": "editorial local-first dashboard led by safe-to-spend, with a collapsible N3 rail and Ft2 factual footer"
+  },
+  {
+    "date": "2026-08-31",
+    "scope": "app",
+    "macrostructure": "Workbench with grouped N3 navigation, contextual toolbar, and lateral sheets",
+    "theme": "fog-and-forest light, graphite-and-mint dark, and obsidian-and-aged-rose gothic with bundled Geist and Inter",
+    "enrichment": "none",
+    "brief": "complete premium desktop-first redesign centered on safe-to-spend, with responsive dock, progressive editors, deterministic preview, native motion, and a full anti-slop audit"
   }
 ]

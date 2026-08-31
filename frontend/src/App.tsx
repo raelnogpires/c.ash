@@ -231,12 +231,15 @@ export default function App({ api = defaultAPI }: { api?: API }) {
   }
 
   const balancesHidden = data.profile?.balancesHidden ?? false
-  const title = view === 'dashboard' ? `Olá${data.profile?.displayName ? `, ${data.profile.displayName}` : ''}` : viewLabels[view]
+  const title = view === 'dashboard' ? 'Visão geral' : viewLabels[view]
+  const eyebrow = view === 'dashboard'
+    ? (data.profile?.displayName ? `Olá, ${data.profile.displayName}` : 'Seu mês, agora')
+    : undefined
   return <>
     <AppShell
       collapsed={sidebarCollapsed}
       sidebar={<Sidebar groups={navigationGroups} active={view} collapsed={sidebarCollapsed} displayName={data.profile?.displayName} onNavigate={setView} onCollapsedChange={setSidebarCollapsed}/>}
-      toolbar={<Toolbar title={title} eyebrow={view === 'dashboard' ? 'Seu mês, agora' : undefined} transactionDisabled={!data.accounts.length} transactionHint={!data.accounts.length ? 'Crie uma conta primeiro' : 'Atalho: Ctrl+N'} onTransaction={() => openTransaction()}/>}
+      toolbar={<Toolbar title={title} eyebrow={eyebrow} transactionDisabled={!data.accounts.length} transactionHint={!data.accounts.length ? 'Crie uma conta primeiro' : 'Atalho: Ctrl+N'} onTransaction={() => openTransaction()}/>}
     >
       {error && <div className="alert" role="alert">{error}<button onClick={() => setError('')} aria-label="Fechar aviso"><Icon name="close"/></button></div>}
       {data.setup && updateStatus?.state === 'available' && !updateDismissed && <section className="update-banner" role="status" aria-label="Atualização disponível"><div><strong>Uma atualização está disponível</strong><span>Versão {updateStatus.availableVersion}</span></div><div><Button kind="secondary" onClick={() => setUpdateDialog(true)}>Ver novidades</Button><button className="text-button muted" onClick={() => setUpdateDismissed(true)}>Depois</button></div></section>}
